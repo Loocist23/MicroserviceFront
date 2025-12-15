@@ -1,0 +1,50 @@
+[
+  {
+    "id": "reservation-1",
+    "userId": "user-1",
+    "sessionId": "session-3",
+    "seats": 2,
+    "totalPrice": 24,
+    "createdAt": "2024-09-20T10:00:00"
+  },
+  {
+    "id": "reservation-2",
+    "userId": "user-2",
+    "sessionId": "session-2",
+    "seats": 1,
+    "totalPrice": 9,
+    "createdAt": "2024-09-22T18:30:00"
+  },
+  {
+    "id": "reservation-3",
+    "userId": "user-3",
+    "sessionId": "session-9",
+    "seats": 3,
+    "totalPrice": 21,
+    "createdAt": "2024-09-23T14:30:00"
+  },
+  {
+    "id": "reservation-4",
+    "userId": "user-4",
+    "sessionId": "session-5",
+    "seats": 2,
+    "totalPrice": 16,
+    "createdAt": "2024-09-24T11:20:00"
+  },
+  {
+    "id": "reservation-5",
+    "userId": "user-5",
+    "sessionId": "session-7",
+    "seats": 4,
+    "totalPrice": 36,
+    "createdAt": "2024-09-24T19:15:00"
+  },
+  {
+    "id": "reservation-6",
+    "userId": "user-6",
+    "sessionId": "session-10",
+    "seats": 2,
+    "totalPrice": 24,
+    "createdAt": "2024-09-25T09:45:00"
+  }
+]

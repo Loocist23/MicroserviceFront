@@ -1,0 +1,101 @@
+[
+  {
+    "id": "session-1",
+    "filmId": "film-1",
+    "roomNumber": 1,
+    "schedule": "2024-09-27T20:00",
+    "seatsTotal": 120,
+    "seatsTaken": 45,
+    "roomType": "IMAX"
+  },
+  {
+    "id": "session-2",
+    "filmId": "film-2",
+    "roomNumber": 4,
+    "schedule": "2024-09-28T18:30",
+    "seatsTotal": 90,
+    "seatsTaken": 60,
+    "roomType": "Dolby Atmos"
+  },
+  {
+    "id": "session-3",
+    "filmId": "film-3",
+    "roomNumber": 2,
+    "schedule": "2024-09-27T16:15",
+    "seatsTotal": 80,
+    "seatsTaken": 20,
+    "roomType": "Standard"
+  },
+  {
+    "id": "session-4",
+    "filmId": "film-1",
+    "roomNumber": 3,
+    "schedule": "2024-09-28T22:30",
+    "seatsTotal": 120,
+    "seatsTaken": 78,
+    "roomType": "IMAX"
+  },
+  {
+    "id": "session-5",
+    "filmId": "film-4",
+    "roomNumber": 5,
+    "schedule": "2024-09-29T19:45",
+    "seatsTotal": 100,
+    "seatsTaken": 54,
+    "roomType": "Dolby Atmos"
+  },
+  {
+    "id": "session-6",
+    "filmId": "film-5",
+    "roomNumber": 1,
+    "schedule": "2024-09-29T18:00",
+    "seatsTotal": 140,
+    "seatsTaken": 50,
+    "roomType": "IMAX"
+  },
+  {
+    "id": "session-7",
+    "filmId": "film-5",
+    "roomNumber": 2,
+    "schedule": "2024-09-30T13:45",
+    "seatsTotal": 140,
+    "seatsTaken": 66,
+    "roomType": "IMAX"
+  },
+  {
+    "id": "session-8",
+    "filmId": "film-6",
+    "roomNumber": 7,
+    "schedule": "2024-09-27T20:30",
+    "seatsTotal": 85,
+    "seatsTaken": 30,
+    "roomType": "Dolby Atmos"
+  },
+  {
+    "id": "session-9",
+    "filmId": "film-7",
+    "roomNumber": 5,
+    "schedule": "2024-09-27T14:00",
+    "seatsTotal": 110,
+    "seatsTaken": 65,
+    "roomType": "Family 3D"
+  },
+  {
+    "id": "session-10",
+    "filmId": "film-8",
+    "roomNumber": 6,
+    "schedule": "2024-09-28T19:15",
+    "seatsTotal": 90,
+    "seatsTaken": 20,
+    "roomType": "Standard"
+  },
+  {
+    "id": "session-11",
+    "filmId": "film-6",
+    "roomNumber": 7,
+    "schedule": "2024-09-30T21:30",
+    "seatsTotal": 85,
+    "seatsTaken": 58,
+    "roomType": "Dolby Atmos"
+  }
+]
