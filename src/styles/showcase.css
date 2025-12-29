@@ -1,0 +1,52 @@
+.now-playing__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.poster {
+  border-radius: 18px;
+  padding: 1.25rem;
+  color: #fff;
+  min-height: 340px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.poster--nebula {
+  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.3), transparent), #312e81;
+}
+
+.poster--cosmos {
+  background: radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.2), transparent), #0f172a;
+}
+
+.poster--sunset {
+  background: linear-gradient(135deg, #be123c, #f97316);
+}
+
+.poster__tagline {
+  font-size: 1rem;
+  margin: 0.25rem 0;
+}
+
+.poster__meta {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.poster__synopsis {
+  font-size: 0.95rem;
+}
+
+.poster__sessions ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+}
