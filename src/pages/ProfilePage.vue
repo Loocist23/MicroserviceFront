@@ -33,8 +33,8 @@ const logout = () => {
         <h3>Informations personnelles</h3>
         <ul class="profile-list">
           <li><strong>Nom complet</strong><span>{{ user?.firstName }} {{ user?.lastName }}</span></li>
-          <li><strong>Login</strong><span>{{ user?.login }}</span></li>
           <li><strong>Email</strong><span>{{ user?.email }}</span></li>
+          <li><strong>Rôle</strong><span>{{ user?.role }}</span></li>
           <li><strong>Tarif appliqué</strong><span>{{ user?.pricing }}</span></li>
           <li><strong>Âge</strong><span>{{ user?.age }} ans</span></li>
         </ul>

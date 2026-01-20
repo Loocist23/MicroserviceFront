@@ -27,7 +27,10 @@ const parseResponse = async (response) => {
       (payload && typeof payload === 'object' && 'message' in payload && payload.message) ||
       (typeof payload === 'string' && payload) ||
       `HTTP ${response.status}`
-    throw new Error(message)
+    const error = new Error(message)
+    error.status = response.status
+    error.payload = payload
+    throw error
   }
 
   return payload

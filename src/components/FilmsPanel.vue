@@ -1,6 +1,8 @@
 <script setup>
 import { reactive, ref, computed } from 'vue'
 import { useCinemaStore } from '../stores/cinemaStore.js'
+import { formatAgeRatingDisplay, formatDurationDisplay } from '../utils/filmFormatting.js'
+import { normalizeId } from '../utils/id.js'
 
 const store = useCinemaStore()
 
@@ -69,6 +71,10 @@ const handleDelete = async (film) => {
 }
 
 const sessionsPerFilm = store.sessionsByFilm
+const ageRatingText = (value) => formatAgeRatingDisplay(value)
+const durationText = (value) => formatDurationDisplay(value, { fallback: '—' })
+const sessionsForFilm = (filmId) => sessionsPerFilm.value?.[normalizeId(filmId)] ?? []
+const seatsAvailable = (session) => store.remainingSeats(session)
 </script>
 
 <template>
@@ -131,7 +137,7 @@ const sessionsPerFilm = store.sessionsByFilm
             <header class="card__header">
               <div>
                 <h4>{{ film.name }}</h4>
-                <p class="muted">{{ film.genre }} · {{ film.duration }} min · {{ film.year }}</p>
+                <p class="muted">{{ film.genre }} · {{ durationText(film.duration) }} · {{ film.year }}</p>
               </div>
               <div class="card__actions">
                 <button type="button" class="ghost" @click="handleEdit(film)">Modifier</button>
@@ -140,18 +146,18 @@ const sessionsPerFilm = store.sessionsByFilm
             </header>
             <p class="muted">Réalisateur : {{ film.director || 'Inconnu' }}</p>
             <p>{{ film.synopsis || 'Pas de synopsis fourni.' }}</p>
-            <p class="badge">Âge conseillé : {{ film.ageRating }}+</p>
+            <p class="badge">Âge conseillé : {{ ageRatingText(film.ageRating) }}</p>
 
-            <div v-if="sessionsPerFilm[film.id]?.length" class="sessions-chip">
+            <div v-if="sessionsForFilm(film.id)?.length" class="sessions-chip">
               <p class="muted">Séances reliées :</p>
               <ul>
-                <li v-for="session in sessionsPerFilm[film.id]" :key="session.id">
+                <li v-for="session in sessionsForFilm(film.id)" :key="session.id">
                   Salle {{ session.roomNumber }} ·
                   {{ new Date(session.schedule).toLocaleString('fr-FR', {
                     dateStyle: 'short',
                     timeStyle: 'short',
                   }) }}
-                  · {{ session.seatsTotal - session.seatsTaken }} places restantes
+                  · {{ seatsAvailable(session) }} places restantes
                 </li>
               </ul>
             </div>

@@ -1,22 +1,40 @@
 <script setup>
 import { computed } from 'vue'
 import { useCinemaStore } from '../stores/cinemaStore.js'
+import { normalizeId } from '../utils/id.js'
+import { formatAgeRatingDisplay, formatDurationDisplay } from '../utils/filmFormatting.js'
 
 const store = useCinemaStore()
+const upcomingSessionsByFilm = store.upcomingSessionsByFilm
 
 const films = computed(() =>
-  [...store.state.films].sort((a, b) => a.name.localeCompare(b.name, 'fr')),
+  [...store.state.films]
+    .filter((film) => (upcomingSessionsByFilm.value[normalizeId(film.id)] ?? []).length > 0)
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr')),
 )
 
 const sessionsForFilm = (filmId) =>
-  store.state.sessions
-    .filter((session) => session.filmId === filmId)
-    .sort((a, b) => new Date(a.schedule) - new Date(b.schedule))
+  [...(upcomingSessionsByFilm.value[normalizeId(filmId)] ?? [])].sort(
+    (a, b) => new Date(a.schedule) - new Date(b.schedule),
+  )
 
 const formatSchedule = (value) =>
   new Date(value).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
 
-const availability = (session) => session.seatsTotal - session.seatsTaken
+const availability = (session) => store.remainingSeats(session)
+
+const posterStyle = (film) => {
+  if (!film?.posterUrl) return {}
+  return {
+    backgroundImage: `linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.55)), url(${film.posterUrl})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+  }
+}
+
+const ageRatingText = (value) => formatAgeRatingDisplay(value)
+const durationText = (value) => formatDurationDisplay(value)
 </script>
 
 <template>
@@ -30,12 +48,19 @@ const availability = (session) => session.seatsTotal - session.seatsTaken
     </header>
 
     <div class="now-playing__grid">
-      <article v-for="film in films" :key="film.id" class="poster" :class="`poster--${film.posterTheme}`">
+      <article
+        v-for="film in films"
+        :key="film.id"
+        class="poster"
+        :class="`poster--${film.posterTheme || 'cosmos'}`"
+        :style="posterStyle(film)"
+      >
         <div>
           <h3>{{ film.name }}</h3>
           <p class="poster__tagline">{{ film.tagline }}</p>
           <p class="poster__meta">
-            {{ film.genre }} · {{ film.duration }} min · {{ film.year }} · Âge {{ film.ageRating }}+
+            {{ film.genre }} · {{ durationText(film.duration) }} · {{ film.year }} ·
+            Âge {{ ageRatingText(film.ageRating) }}
           </p>
           <p class="poster__synopsis">{{ film.synopsis }}</p>
         </div>

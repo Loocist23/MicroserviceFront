@@ -152,7 +152,7 @@ const filmName = (filmId) => store.state.films.find((film) => film.id === filmId
             </header>
             <p>Type de salle : {{ session.roomType }}</p>
             <p>
-              {{ session.seatsTotal - session.seatsTaken }} / {{ session.seatsTotal }} places restantes
+              {{ store.remainingSeats(session) }} / {{ session.seatsTotal }} places restantes
             </p>
           </article>
         </div>

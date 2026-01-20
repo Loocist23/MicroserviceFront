@@ -1,50 +1,73 @@
 <script setup>
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import FeaturedCarousel from '../components/FeaturedCarousel.vue'
 import NowPlaying from '../components/NowPlaying.vue'
+import { useCinemaStore } from '../stores/cinemaStore.js'
+
+const store = useCinemaStore()
+
+const stats = computed(() => {
+  const filmsCount = store.filmsWithUpcomingSessions.value.length
+  const sessionsCount = store.upcomingSessions.value.length
+  const availableSeats = store.availableUpcomingSeats.value
+  return [
+    { label: 'Films à l’affiche', value: filmsCount || '—' },
+    { label: 'Séances programmées', value: sessionsCount || '—' },
+    { label: 'Places libres', value: availableSeats || '—' },
+  ]
+})
+
+const perks = [
+  {
+    title: 'Programmation audacieuse',
+    description: 'Classiques restaurés, créations locales et blockbusters en VO chaque semaine.',
+  },
+  {
+    title: 'Expérience premium',
+    description: 'Projection laser, confort Dolby Atmos, snacks artisanaux et équipe passionnée.',
+  },
+  {
+    title: 'Réservation fluide',
+    description: 'Tarifs adaptés, paiement sécurisé et historique disponible sur ton profil.',
+  },
+]
 </script>
 
 <template>
   <div class="page page--home">
-    <section class="hero">
-      <div>
+    <section class="hero hero--cinema">
+      <div class="hero__content">
         <p class="eyebrow">Cinéma indépendant · Marseille</p>
         <h1>Les Jeunot</h1>
         <p>
-          Salle iconique du Panier, Les Jeunot propose une programmation mêlant grands classiques,
-          pépites d’auteur et blockbusters en VO. Réservez vos places en ligne et profitez de tarifs
-          adaptés.
+          Une salle pensée pour vibrer devant les sorties cultes comme les pépites intimistes.
+          Réserve ta place, choisis ton fauteuil et laisse-nous t’accueillir comme un habitué.
         </p>
         <div class="hero__cta">
-          <RouterLink class="primary" to="/reserve">Réserver une séance</RouterLink>
-          <RouterLink class="ghost" to="/login">Se connecter</RouterLink>
+          <RouterLink class="primary" to="/catalogue">Catalogue & réservations</RouterLink>
+          <RouterLink class="ghost" to="/login">Accéder à mon profil</RouterLink>
         </div>
       </div>
-      <ul class="hero__tags">
-        <li>VOSTFR</li>
-        <li>Avant-premières</li>
-        <li>Tarif étudiant</li>
-        <li>Carte -16 ans</li>
-        <li>Popcorn local</li>
-      </ul>
+      <div class="hero__stats">
+        <div v-for="item in stats" :key="item.label" class="hero__stat">
+          <p>{{ item.label }}</p>
+          <strong>{{ item.value }}</strong>
+        </div>
+      </div>
     </section>
 
-    <section class="panel services-overview">
+    <FeaturedCarousel />
+
+    <section class="panel highlight-grid">
       <header>
-        <p class="eyebrow eyebrow--dark">Services Les Jeunot</p>
-        <h2>Une billetterie simple, sûre et rapide</h2>
+        <p class="eyebrow eyebrow--dark">L’expérience Les Jeunot</p>
+        <h2>On ne programme pas uniquement des films, on fabrique des souvenirs.</h2>
       </header>
-      <div class="services-overview__grid">
-        <article>
-          <h3>Programmation</h3>
-          <p>Catalogue mis à jour quotidiennement avec synopsis, durées et âges conseillés.</p>
-        </article>
-        <article>
-          <h3>Comptes & avantages</h3>
-          <p>Tarifs adaptés (étudiant, -16 ans, chômeur) et historique de vos réservations.</p>
-        </article>
-        <article>
-          <h3>Salles & confort</h3>
-          <p>Capacité en temps réel, sélection de la salle (IMAX, Dolby Atmos, standard).</p>
+      <div class="highlight-grid__items">
+        <article v-for="perk in perks" :key="perk.title" class="highlight-card">
+          <h3>{{ perk.title }}</h3>
+          <p>{{ perk.description }}</p>
         </article>
       </div>
     </section>

@@ -4,7 +4,8 @@
   gap: 1.5rem;
 }
 
-.page--reserve .panel,
+.page--catalogue .panel,
+.page--catalogue-detail .panel,
 .page--backoffice .panel,
 .page--home .panel {
   margin-bottom: 0.5rem;

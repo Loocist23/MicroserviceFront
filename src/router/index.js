@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '../pages/HomePage.vue'
 import ReservePage from '../pages/ReservePage.vue'
+import ReserveFilmPage from '../pages/ReserveFilmPage.vue'
 import BackofficePage from '../pages/BackofficePage.vue'
 import BackofficeDashboard from '../pages/BackofficeDashboard.vue'
 import BackofficeFilms from '../pages/BackofficeFilms.vue'
@@ -17,7 +18,8 @@ import { useCinemaStore } from '../stores/cinemaStore.js'
 
 const routes = [
   { path: '/', name: 'home', component: HomePage },
-  { path: '/reserve', name: 'reserve', component: ReservePage },
+  { path: '/catalogue', name: 'catalogue', component: ReservePage },
+  { path: '/catalogue/:filmId', name: 'catalogue-film', component: ReserveFilmPage },
   { path: '/login', name: 'login', component: LoginPage },
   { path: '/rgpd/confidentialite', name: 'privacy', component: PrivacyPolicyPage },
   { path: '/rgpd/droits', name: 'data-rights', component: DataRightsPage },
@@ -60,7 +62,7 @@ router.beforeEach((to, from, next) => {
     return
   }
 
-  if (!store.state.films.length && !store.loading.films) {
+  if (!store.state.films.length && !store.state.loading.films) {
     store.bootstrap()
   }
 

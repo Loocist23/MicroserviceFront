@@ -21,7 +21,7 @@ defineProps<{
       <p class="brand">{{ brand }}</p>
       <nav>
         <RouterLink class="nav-link" to="/">Accueil</RouterLink>
-        <RouterLink class="nav-link" to="/reserve">Réserver</RouterLink>
+        <RouterLink class="nav-link" to="/catalogue">Catalogue</RouterLink>
         <RouterLink v-if="!isAuthenticated" class="nav-link" to="/login">Se connecter</RouterLink>
         <RouterLink v-else class="nav-link" to="/profil">Profil</RouterLink>
         <RouterLink v-if="isAdmin" class="nav-link" to="/backoffice/dashboard">Back-office</RouterLink>

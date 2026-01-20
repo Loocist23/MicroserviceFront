@@ -2,6 +2,89 @@ import { computed, reactive } from 'vue'
 import * as filmsService from '../services/filmsService.js'
 import * as sessionsService from '../services/sessionsService.js'
 import * as accountsService from '../services/accountsService.js'
+import { normalizeId } from '../utils/id.js'
+
+const PRICING_PREF_KEY = 'archlogifront:pricing'
+const AUTH_SESSION_KEY = 'archlogifront:session'
+
+const safeStorage = () => {
+  if (typeof window === 'undefined') return null
+  return window.localStorage ?? null
+}
+
+const readJsonStorage = (key) => {
+  const storage = safeStorage()
+  if (!storage) return null
+  try {
+    const raw = storage.getItem(key)
+    return raw ? JSON.parse(raw) : null
+  } catch (error) {
+    return null
+  }
+}
+
+const writeJsonStorage = (key, value) => {
+  const storage = safeStorage()
+  if (!storage) return
+  if (value === null || value === undefined) {
+    storage.removeItem(key)
+    return
+  }
+  try {
+    storage.setItem(key, JSON.stringify(value))
+  } catch (error) {
+    // Ignore storage quota errors silently
+  }
+}
+
+const loadPricingPreferences = () => {
+  return readJsonStorage(PRICING_PREF_KEY) ?? {}
+}
+
+const readPricingPreference = (email) => {
+  if (!email) return ''
+  const prefs = loadPricingPreferences()
+  return prefs[email] ?? ''
+}
+
+const writePricingPreference = (email, pricing) => {
+  if (!email || !pricing) return
+  const prefs = loadPricingPreferences()
+  prefs[email] = pricing
+  writeJsonStorage(PRICING_PREF_KEY, prefs)
+}
+
+const loadAuthSession = () => {
+  const stored = readJsonStorage(AUTH_SESSION_KEY)
+  if (!stored) return null
+  return {
+    user: stored.user ?? null,
+    token: stored.token ?? '',
+    refreshToken: stored.refreshToken ?? '',
+  }
+}
+
+const persistAuthSession = (session) => {
+  const hasSession = session && (session.user || session.token || session.refreshToken)
+  writeJsonStorage(AUTH_SESSION_KEY, hasSession ? session : null)
+}
+
+const enrichUserProfile = (payload) => {
+  if (!payload) return null
+  const firstName = payload.firstname ?? payload.firstName ?? ''
+  const emailLogin = payload.email ? payload.email.split('@')[0] : ''
+  const fallbackName = firstName || (payload.lastname ?? 'user')
+  const login = payload.login ?? (emailLogin || fallbackName || 'user')
+  const pricing = payload.pricing ?? readPricingPreference(payload.email) ?? 'standard'
+  return {
+    id: payload.id ?? payload.uuid ?? payload.email ?? `user-${Date.now()}`,
+    ...payload,
+    firstName: firstName || (payload.firstName ?? ''),
+    lastName: payload.lastname ?? payload.lastName ?? '',
+    login,
+    pricing,
+  }
+}
 
 const PRICING_RULES = {
   standard: 12,
@@ -17,6 +100,7 @@ const state = reactive({
   reservations: [],
   currentUser: null,
   authToken: '',
+  refreshToken: '',
   loading: {
     films: false,
     sessions: false,
@@ -48,10 +132,72 @@ const resetError = (key) => {
   state.errors[key] = ''
 }
 
-const setAuthSession = ({ user, token } = {}) => {
-  state.currentUser = user ?? null
-  state.authToken = token ?? ''
+const setAuthSession = ({ user, token, refreshToken } = {}) => {
+  if (user !== undefined) {
+    state.currentUser = user ?? null
+    state.users = state.currentUser ? [state.currentUser] : []
+  }
+  if (token !== undefined) {
+    state.authToken = token ?? ''
+  }
+  if (refreshToken !== undefined) {
+    state.refreshToken = refreshToken ?? ''
+  }
+  persistAuthSession({
+    user: state.currentUser,
+    token: state.authToken,
+    refreshToken: state.refreshToken,
+  })
   return state.currentUser
+}
+
+const storedAuthSession = loadAuthSession()
+if (storedAuthSession) {
+  setAuthSession(storedAuthSession)
+}
+
+const isUnauthorizedError = (error) => {
+  if (!error) return false
+  const status = typeof error === 'object' && error !== null && 'status' in error ? Number(error.status) : NaN
+  if (!Number.isNaN(status)) {
+    return status === 401
+  }
+  const message = error instanceof Error ? error.message : ''
+  return typeof message === 'string' && /401/.test(message)
+}
+
+const tryRenewAccessToken = async () => {
+  if (!state.refreshToken) return false
+  try {
+    const newToken = await accountsService.refreshAccessToken(state.refreshToken)
+    if (!newToken) return false
+    setAuthSession({ token: newToken })
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+const clearSessionState = () => {
+  setAuthSession({ user: null, token: '', refreshToken: '' })
+  state.reservations = []
+}
+
+const withAccessToken = async (task, { logoutOnFailure = true } = {}) => {
+  if (!state.authToken) {
+    throw new Error('Identifiez-vous pour continuer')
+  }
+  try {
+    return await task(state.authToken)
+  } catch (error) {
+    if (isUnauthorizedError(error) && (await tryRenewAccessToken())) {
+      return await task(state.authToken)
+    }
+    if (logoutOnFailure && isUnauthorizedError(error)) {
+      clearSessionState()
+    }
+    throw error
+  }
 }
 
 const fetchFilms = async () => {
@@ -83,15 +229,24 @@ const fetchSessions = async () => {
 const fetchAccounts = async () => {
   if (state.serviceDown.accounts) return
   resetError('accounts')
+  if (!state.authToken && state.refreshToken) {
+    await tryRenewAccessToken()
+  }
   if (!state.authToken) {
-    state.users = []
-    state.reservations = []
+    clearSessionState()
     return
   }
   state.loading.accounts = true
   try {
-    state.users = await accountsService.listUsers(state.authToken)
-    state.reservations = await accountsService.listReservations(state.authToken)
+    const profile = await withAccessToken((token) => accountsService.fetchProfile(token))
+    const user = enrichUserProfile(profile)
+    setAuthSession({ user })
+    const reservations = await withAccessToken((token) => accountsService.listReservations(token))
+    const userId = state.currentUser?.id ?? null
+    state.reservations = reservations.map((reservation) => ({
+      ...reservation,
+      userId: reservation.userId ?? userId ?? undefined,
+    }))
   } catch (error) {
     setError('accounts', error)
   } finally {
@@ -152,32 +307,62 @@ const removeSession = async (id) => {
   ensureService('sessions')
   ensureService('accounts')
   await sessionsService.deleteSession(id)
-  await accountsService.deleteReservationsBySession(id, state.authToken)
+  if (state.authToken) {
+    const relatedReservations = state.reservations.filter((reservation) => reservation.sessionId === id)
+    for (const reservation of relatedReservations) {
+      try {
+        await withAccessToken((token) => accountsService.deleteReservation(reservation.id, token))
+      } catch (error) {
+        // Ignore ticket cleanup errors so the session removal can continue
+      }
+    }
+  }
   state.sessions = state.sessions.filter((session) => session.id !== id)
   state.reservations = state.reservations.filter((reservation) => reservation.sessionId !== id)
 }
 
-const registerUser = async (payload) => {
+const registerUser = async ({ firstName, lastName, email, age, password, pricing = 'standard' }) => {
   ensureService('accounts')
-  const authPayload = await accountsService.registerUser(payload)
-  const user = setAuthSession(authPayload)
-  await fetchAccounts()
-  return user
+  await accountsService.registerUser({
+    firstName,
+    lastName,
+    email,
+    age,
+    password,
+  })
+  writePricingPreference(email, pricing)
+  await login({ email, password })
+  return state.currentUser
 }
 
-const login = async (credentials) => {
+const login = async ({ email, password }) => {
   ensureService('accounts')
-  const authPayload = await accountsService.authenticate(credentials)
-  const user = setAuthSession(authPayload)
+  const { accessToken, refreshToken } = await accountsService.authenticate({ email, password })
+  setAuthSession({ token: accessToken, refreshToken })
   await fetchAccounts()
-  return user
+  return state.currentUser
 }
 
 const logout = () => {
-  state.currentUser = null
-  state.authToken = ''
-  state.users = []
-  state.reservations = []
+  clearSessionState()
+}
+
+const remainingSeatsForSession = (session) => {
+  if (!session) return 0
+  const total = Number(session.seatsTotal) || 0
+  const taken = Math.min(Math.max(Number(session.seatsTaken) || 0, 0), total)
+  return Math.max(0, total - taken)
+}
+
+const seatPriceForSession = (session) => {
+  const numericPrice = Number(session?.price)
+  if (Number.isFinite(numericPrice) && numericPrice >= 0) {
+    return numericPrice
+  }
+  if (state.currentUser?.pricing && PRICING_RULES[state.currentUser.pricing]) {
+    return PRICING_RULES[state.currentUser.pricing]
+  }
+  return PRICING_RULES.standard
 }
 
 const addReservation = async ({ sessionId, seats }) => {
@@ -188,22 +373,32 @@ const addReservation = async ({ sessionId, seats }) => {
   const session = state.sessions.find((item) => item.id === sessionId)
   if (!session) throw new Error('Séance introuvable')
 
-  const available = session.seatsTotal - session.seatsTaken
+  const available = remainingSeatsForSession(session)
   if (seats > available) {
     throw new Error(`Il reste seulement ${available} place(s) pour cette séance`)
   }
 
   const updatedSession = await sessionsService.reserveSeats(sessionId, seats)
-  const pricePerSeat = PRICING_RULES[state.currentUser.pricing] ?? PRICING_RULES.standard
-  const reservation = await accountsService.addReservation({
+  const pricePerSeat = seatPriceForSession(session)
+  const showingPayload = {
     sessionId,
-    userId: state.currentUser.id,
     seats,
     totalPrice: seats * pricePerSeat,
-  }, state.authToken)
-  state.sessions = state.sessions.map((item) => (item.id === sessionId ? updatedSession : item))
-  state.reservations.push(reservation)
-  return reservation
+    createdAt: new Date().toISOString(),
+  }
+  const reservation = await withAccessToken((token) => accountsService.addReservation(showingPayload, token))
+  const targetId = normalizeId(sessionId)
+  state.sessions = state.sessions.map((item) =>
+    normalizeId(item.id) === targetId ? updatedSession : item,
+  )
+  const normalizedReservation = {
+    ...showingPayload,
+    ...(reservation ?? {}),
+    id: reservation?.id ?? reservation?.uuid ?? `reservation-${Date.now()}`,
+    userId: state.currentUser.id,
+  }
+  state.reservations.push(normalizedReservation)
+  return normalizedReservation
 }
 
 const reservationHistory = computed(() => {
@@ -212,18 +407,48 @@ const reservationHistory = computed(() => {
 })
 
 const sessionsByFilm = computed(() => {
-  const index = state.sessions.reduce((acc, session) => {
-    acc[session.filmId] = acc[session.filmId] ?? []
-    acc[session.filmId].push(session)
+  return state.sessions.reduce((acc, session) => {
+    const filmKey = normalizeId(session.filmId)
+    if (!filmKey) return acc
+    acc[filmKey] = acc[filmKey] ?? []
+    acc[filmKey].push(session)
     return acc
   }, {})
-  return index
+})
+
+const upcomingSessions = computed(() => {
+  const now = Date.now()
+  return state.sessions.filter((session) => {
+    const schedule = new Date(session.schedule).getTime()
+    return Number.isFinite(schedule) && schedule > now
+  })
+})
+
+const upcomingSessionsByFilm = computed(() => {
+  return upcomingSessions.value.reduce((acc, session) => {
+    const filmKey = normalizeId(session.filmId)
+    if (!filmKey) return acc
+    acc[filmKey] = acc[filmKey] ?? []
+    acc[filmKey].push(session)
+    return acc
+  }, {})
+})
+
+const filmsWithUpcomingSessions = computed(() => {
+  const map = upcomingSessionsByFilm.value
+  return state.films.filter((film) => (map[normalizeId(film.id)] ?? []).length > 0)
+})
+
+const availableUpcomingSeats = computed(() => {
+  return upcomingSessions.value.reduce((total, session) => total + remainingSeatsForSession(session), 0)
 })
 
 const seatsRemaining = (sessionId) => {
-  const session = state.sessions.find((item) => item.id === sessionId)
+  const targetId = normalizeId(sessionId)
+  if (!targetId) return 0
+  const session = state.sessions.find((item) => normalizeId(item.id) === targetId)
   if (!session) return 0
-  return session.seatsTotal - session.seatsTaken
+  return remainingSeatsForSession(session)
 }
 
 export const useCinemaStore = () => ({
@@ -245,6 +470,12 @@ export const useCinemaStore = () => ({
   addReservation,
   reservationHistory,
   sessionsByFilm,
+  upcomingSessions,
+  upcomingSessionsByFilm,
+  filmsWithUpcomingSessions,
+  availableUpcomingSeats,
   seatsRemaining,
+  remainingSeats: remainingSeatsForSession,
+  seatPriceForSession,
   PRICING_RULES,
 })

@@ -8,18 +8,16 @@ const router = useRouter()
 const route = useRoute()
 
 const registerForm = reactive({
-  login: '',
   password: '',
   firstName: '',
   lastName: '',
   email: '',
   age: 18,
   pricing: 'standard',
-  role: 'client',
 })
 
 const loginForm = reactive({
-  login: '',
+  email: '',
   password: '',
 })
 
@@ -43,8 +41,8 @@ const redirectToProfile = () => {
 }
 
 const submitRegister = async () => {
-  if (!registerForm.login || !registerForm.password) {
-    registerFeedback.value = 'Login et mot de passe sont requis.'
+  if (!registerForm.firstName || !registerForm.lastName || !registerForm.email || !registerForm.password) {
+    registerFeedback.value = 'Prénom, nom, email et mot de passe sont requis.'
     return
   }
 
@@ -61,7 +59,7 @@ const submitRegister = async () => {
 }
 
 const submitLogin = async () => {
-  if (!loginForm.login || !loginForm.password) {
+  if (!loginForm.email || !loginForm.password) {
     loginFeedback.value = 'Tous les champs sont requis.'
     return
   }
@@ -92,10 +90,6 @@ const submitLogin = async () => {
       <form class="form" @submit.prevent="submitRegister">
         <h3>Inscription</h3>
         <label>
-          Login
-          <input v-model="registerForm.login" required />
-        </label>
-        <label>
           Mot de passe
           <input v-model="registerForm.password" type="password" required />
         </label>
@@ -123,13 +117,6 @@ const submitLogin = async () => {
             </option>
           </select>
         </label>
-        <label>
-          Rôle
-          <select v-model="registerForm.role">
-            <option value="client">Client</option>
-            <option value="admin">Admin</option>
-          </select>
-        </label>
         <button type="submit" class="primary">Créer le compte</button>
         <p v-if="registerFeedback" class="hint">{{ registerFeedback }}</p>
       </form>
@@ -137,8 +124,8 @@ const submitLogin = async () => {
       <form class="form" @submit.prevent="submitLogin">
         <h3>Connexion</h3>
         <label>
-          Login
-          <input v-model="loginForm.login" required />
+          Email
+          <input v-model="loginForm.email" type="email" required />
         </label>
         <label>
           Mot de passe

@@ -50,8 +50,10 @@ const metrics = computed(() => {
   )
   const seatTotals = store.state.sessions.reduce(
     (acc, session) => {
-      acc.taken += session.seatsTaken
-      acc.capacity += session.seatsTotal
+      const capacity = Math.max(0, Number(session.seatsTotal) || 0)
+      const taken = Math.min(Math.max(Number(session.seatsTaken) || 0, 0), capacity)
+      acc.taken += taken
+      acc.capacity += capacity
       return acc
     },
     { taken: 0, capacity: 0 },
@@ -76,8 +78,13 @@ const sessionIndex = computed(() =>
   }, {}),
 )
 
-const upcomingSessions = computed(() =>
-  [...store.state.sessions]
+const upcomingSessions = computed(() => {
+  const now = Date.now()
+  return [...store.state.sessions]
+    .filter((session) => {
+      const schedule = new Date(session.schedule).getTime()
+      return Number.isFinite(schedule) && schedule > now
+    })
     .sort((a, b) => new Date(a.schedule) - new Date(b.schedule))
     .slice(0, 5)
     .map((session) => ({
@@ -87,8 +94,8 @@ const upcomingSessions = computed(() =>
         dateStyle: 'short',
         timeStyle: 'short',
       }),
-    })),
-)
+    }))
+})
 
 const recentReservations = computed(() => {
   const userIndex = store.state.users.reduce((acc, user) => {
@@ -186,7 +193,7 @@ const recentReservations = computed(() => {
         <ul class="dashboard-list">
           <li v-for="session in upcomingSessions" :key="session.id">
             <strong>{{ session.filmName }}</strong>
-            <span>{{ session.label }} · Salle {{ session.roomNumber }} · {{ session.seatsTotal - session.seatsTaken }} places libres</span>
+            <span>{{ session.label }} · Salle {{ session.roomNumber }} · {{ store.remainingSeats(session) }} places libres</span>
           </li>
           <li v-if="!upcomingSessions.length" class="muted">Pas de séance programmée.</li>
         </ul>
