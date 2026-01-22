@@ -201,33 +201,34 @@ const withAccessToken = async (task, { logoutOnFailure = true } = {}) => {
 }
 
 const fetchFilms = async () => {
-  if (state.serviceDown.films) return
   state.loading.films = true
   resetError('films')
   try {
     state.films = await filmsService.listFilms()
+    state.serviceDown.films = false
   } catch (error) {
     setError('films', error)
+    state.serviceDown.films = true
   } finally {
     state.loading.films = false
   }
 }
 
 const fetchSessions = async () => {
-  if (state.serviceDown.sessions) return
   state.loading.sessions = true
   resetError('sessions')
   try {
     state.sessions = await sessionsService.listSessions()
+    state.serviceDown.sessions = false
   } catch (error) {
     setError('sessions', error)
+    state.serviceDown.sessions = true
   } finally {
     state.loading.sessions = false
   }
 }
 
 const fetchAccounts = async () => {
-  if (state.serviceDown.accounts) return
   resetError('accounts')
   if (!state.authToken && state.refreshToken) {
     await tryRenewAccessToken()
@@ -241,14 +242,25 @@ const fetchAccounts = async () => {
     const profile = await withAccessToken((token) => accountsService.fetchProfile(token))
     const user = enrichUserProfile(profile)
     setAuthSession({ user })
-    const reservations = await withAccessToken((token) => accountsService.listReservations(token))
+    const isAdmin = user?.role === 'admin'
+    const reservations = await withAccessToken((token) =>
+      isAdmin ? accountsService.listAllReservations(token) : accountsService.listReservations(token),
+    )
     const userId = state.currentUser?.id ?? null
     state.reservations = reservations.map((reservation) => ({
       ...reservation,
       userId: reservation.userId ?? userId ?? undefined,
     }))
+    if (isAdmin) {
+      const users = await withAccessToken((token) => accountsService.listUsers(token))
+      state.users = users.map((entry) => enrichUserProfile(entry))
+    } else {
+      state.users = [user]
+    }
+    state.serviceDown.accounts = false
   } catch (error) {
     setError('accounts', error)
+    state.serviceDown.accounts = true
   } finally {
     state.loading.accounts = false
   }
@@ -271,6 +283,7 @@ const addFilm = async (payload) => {
   ensureService('films')
   const created = await filmsService.createFilm(payload)
   state.films.push(created)
+  return created
 }
 
 const editFilm = async (id, payload) => {
@@ -403,7 +416,14 @@ const addReservation = async ({ sessionId, seats }) => {
 
 const reservationHistory = computed(() => {
   if (!state.currentUser) return []
-  return state.reservations.filter((reservation) => reservation.userId === state.currentUser.id)
+  const normalizeDate = (value) => {
+    const timestamp = new Date(value ?? 0).getTime()
+    return Number.isFinite(timestamp) ? timestamp : 0
+  }
+  return state.reservations
+    .filter((reservation) => reservation.userId === state.currentUser.id)
+    .slice()
+    .sort((a, b) => normalizeDate(b.createdAt) - normalizeDate(a.createdAt))
 })
 
 const sessionsByFilm = computed(() => {

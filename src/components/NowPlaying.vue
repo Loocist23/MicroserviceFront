@@ -13,15 +13,24 @@ const films = computed(() =>
     .sort((a, b) => a.name.localeCompare(b.name, 'fr')),
 )
 
-const sessionsForFilm = (filmId) =>
-  [...(upcomingSessionsByFilm.value[normalizeId(filmId)] ?? [])].sort(
-    (a, b) => new Date(a.schedule) - new Date(b.schedule),
-  )
+const todayBounds = computed(() => {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return {
+    start: start.getTime(),
+    end: end.getTime(),
+  }
+})
 
-const formatSchedule = (value) =>
-  new Date(value).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })
-
-const availability = (session) => store.remainingSeats(session)
+const todaysSessionCount = (filmId) => {
+  const sessions = upcomingSessionsByFilm.value[normalizeId(filmId)] ?? []
+  return sessions.filter((session) => {
+    const scheduledAt = new Date(session.schedule).getTime()
+    return Number.isFinite(scheduledAt) && scheduledAt >= todayBounds.value.start && scheduledAt < todayBounds.value.end
+  }).length
+}
 
 const posterStyle = (film) => {
   if (!film?.posterUrl) return {}
@@ -62,20 +71,14 @@ const durationText = (value) => formatDurationDisplay(value)
             {{ film.genre }} · {{ durationText(film.duration) }} · {{ film.year }} ·
             Âge {{ ageRatingText(film.ageRating) }}
           </p>
-          <p class="poster__synopsis">{{ film.synopsis }}</p>
         </div>
 
         <div class="poster__sessions">
-          <template v-if="sessionsForFilm(film.id).length">
-            <p class="eyebrow eyebrow--light">Séances</p>
-            <ul>
-              <li v-for="session in sessionsForFilm(film.id)" :key="session.id">
-                {{ formatSchedule(session.schedule) }} · Salle {{ session.roomNumber }} ·
-                {{ availability(session) }} places
-              </li>
-            </ul>
-          </template>
-          <p v-else class="muted">Aucune séance planifiée pour le moment.</p>
+          <p class="eyebrow eyebrow--light">Séances prévues aujourd’hui</p>
+          <p v-if="todaysSessionCount(film.id)" class="poster__sessions-count">
+            {{ todaysSessionCount(film.id) }} séance(s)
+          </p>
+          <p v-else class="muted">Aucune séance prévue aujourd’hui.</p>
         </div>
       </article>
     </div>

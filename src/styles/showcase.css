@@ -285,6 +285,23 @@
   background: white;
 }
 
+.readonly-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+  color: #475569;
+}
+
+.readonly-field__value {
+  padding: 0.75rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5f5;
+  background: #f8fafc;
+  font-weight: 600;
+  color: #0f172a;
+}
+
 .sessions-panel {
   margin-top: 1.5rem;
 }

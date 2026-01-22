@@ -65,7 +65,6 @@ const durationText = (value) => formatDurationDisplay(value)
               <p class="muted">
                 {{ film.genre }} · {{ durationText(film.duration) }} · {{ film.year }}
               </p>
-              <p>{{ film.synopsis }}</p>
             </div>
             <div class="film-card__meta">
               <span>Âge {{ ageRatingText(film.ageRating) }}</span>

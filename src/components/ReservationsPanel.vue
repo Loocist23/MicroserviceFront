@@ -14,6 +14,8 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const store = useCinemaStore()
+const normalizedSelectedFilmId = computed(() => normalizeId(props.selectedFilmId))
+const filmSelectionLocked = computed(() => Boolean(normalizedSelectedFilmId.value))
 
 const bookingForm = reactive({
   filmId: '',
@@ -40,29 +42,28 @@ const availableSessions = computed(() => {
 
 watch(
   () => store.state.films,
-          (films) => {
-            if (!films.length) return
-            const normalizedSelected = normalizeId(props.selectedFilmId)
-            if (normalizedSelected) {
-              const exists = films.some((film) => normalizeId(film.id) === normalizedSelected)
-              if (exists) {
-                bookingForm.filmId = normalizedSelected
-                return
-              }
-            }
-            if (!bookingForm.filmId) {
-              bookingForm.filmId = normalizeId(films[0].id)
-            }
-          },
+  (films) => {
+    if (!films.length) return
+    const normalizedSelected = normalizedSelectedFilmId.value
+    if (normalizedSelected) {
+      const exists = films.some((film) => normalizeId(film.id) === normalizedSelected)
+      if (exists) {
+        bookingForm.filmId = normalizedSelected
+        return
+      }
+    }
+    if (!bookingForm.filmId && films[0]) {
+      bookingForm.filmId = normalizeId(films[0].id)
+    }
+  },
   { immediate: true, deep: true },
 )
 
 watch(
-  () => props.selectedFilmId,
+  () => normalizedSelectedFilmId.value,
   (filmId) => {
-    const normalized = normalizeId(filmId)
-    if (normalized && bookingForm.filmId !== normalized) {
-      bookingForm.filmId = normalized
+    if (filmId && bookingForm.filmId !== filmId) {
+      bookingForm.filmId = filmId
     }
   },
 )
@@ -171,7 +172,8 @@ const durationText = (value) => formatDurationDisplay(value)
     <div class="booking-panel__grid">
       <form class="form booking-panel__form" @submit.prevent="submitReservation">
         <h3>Nouvelle réservation</h3>
-        <label>
+        <p class="hint">Choisis ta séance et tes places puis confirme immédiatement.</p>
+        <label v-if="!filmSelectionLocked">
           Film
           <select v-model="bookingForm.filmId">
             <option
@@ -183,6 +185,10 @@ const durationText = (value) => formatDurationDisplay(value)
             </option>
           </select>
         </label>
+        <div v-else class="readonly-field">
+          <span>Film</span>
+          <div class="readonly-field__value">{{ currentFilm?.name ?? 'Film sélectionné' }}</div>
+        </div>
         <label>
           Séance
           <select v-model="bookingForm.sessionId">
