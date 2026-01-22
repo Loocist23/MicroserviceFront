@@ -293,13 +293,21 @@ const attachPosters = async (films) => {
   return Promise.all(films.map((film) => attachPosterToFilm(film)))
 }
 
-const withFilmsFallback = async (factory, fallback) => {
+const withFilmsFallback = async (factory, fallback, { propagateFallbackError = false } = {}) => {
   try {
     return await factory()
   } catch (error) {
     if (isNetworkError(error)) {
       console.warn('[filmsService] API inaccessible. Utilisation des fixtures locales.', error)
-      return await fallback()
+      const fallbackPayload = (await fallback()) ?? []
+      if (propagateFallbackError) {
+        const offlineError = new Error(error?.message || 'Films indisponibles')
+        offlineError.cause = error
+        offlineError.offlinePayload = fallbackPayload
+        offlineError.isOfflineFallback = true
+        throw offlineError
+      }
+      return fallbackPayload
     }
     throw error
   }
@@ -322,6 +330,7 @@ export const listFilms = async () =>
       return attachPosters(films)
     },
     async () => attachPosters(cloneMockFilms()),
+    { propagateFallbackError: true },
   )
 
 export const createFilm = async (payload) =>

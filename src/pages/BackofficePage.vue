@@ -9,7 +9,6 @@ const route = useRoute()
 const menuLinks = [
   { label: 'Dashboard', to: '/backoffice/dashboard' },
   { label: 'Programmation', to: '/backoffice/catalogue' },
-  { label: 'Séances', to: '/backoffice/sessions' },
   { label: 'Réservations', to: '/backoffice/reservations' },
   { label: 'Clients', to: '/backoffice/clients' },
   { label: 'Microservices', to: '/backoffice/services' },

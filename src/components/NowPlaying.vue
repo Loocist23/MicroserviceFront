@@ -7,11 +7,13 @@ import { formatAgeRatingDisplay, formatDurationDisplay } from '../utils/filmForm
 const store = useCinemaStore()
 const upcomingSessionsByFilm = store.upcomingSessionsByFilm
 
-const films = computed(() =>
-  [...store.state.films]
-    .filter((film) => (upcomingSessionsByFilm.value[normalizeId(film.id)] ?? []).length > 0)
-    .sort((a, b) => a.name.localeCompare(b.name, 'fr')),
-)
+const films = computed(() => {
+  const sorted = [...store.state.films].sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+  if (store.state.serviceDown.sessions) {
+    return sorted
+  }
+  return sorted.filter((film) => (upcomingSessionsByFilm.value[normalizeId(film.id)] ?? []).length > 0)
+})
 
 const todayBounds = computed(() => {
   const start = new Date()

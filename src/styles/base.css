@@ -313,6 +313,26 @@ button:hover {
   border-color: #fecdd3;
 }
 
+.service-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  font-weight: 600;
+  min-width: 72px;
+}
+
+.service-status--up {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.service-status--down {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
 .hint {
   color: #475569;
   font-size: 0.9rem;

@@ -1,5 +1,6 @@
 <script setup>
 import { reactive, ref, computed, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useCinemaStore } from '../stores/cinemaStore.js'
 import { formatAgeRatingDisplay, formatDurationDisplay } from '../utils/filmFormatting.js'
 import { normalizeId } from '../utils/id.js'
@@ -14,6 +15,8 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const store = useCinemaStore()
+const router = useRouter()
+const route = useRoute()
 const normalizedSelectedFilmId = computed(() => normalizeId(props.selectedFilmId))
 const filmSelectionLocked = computed(() => Boolean(normalizedSelectedFilmId.value))
 
@@ -24,6 +27,24 @@ const bookingForm = reactive({
 })
 
 const feedback = ref('')
+const paymentState = reactive({
+  visible: false,
+  phase: 'idle',
+  result: '',
+  title: '',
+  description: '',
+  variant: 'calm',
+})
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const successCopy = [
+  { title: 'Paiement confirmé', description: 'Tes billets sont prêts, un reçu arrive par mail.' },
+  { title: 'Transaction validée', description: 'Merci ! La salle est réservée à ton nom.' },
+]
+const failureCopy = [
+  { title: 'Paiement interrompu', description: 'Le prestataire a refusé la transaction.' },
+  { title: 'Transaction annulée', description: 'Aucune place n’a été débitée.' },
+]
+const randomFrom = (items) => items[Math.floor(Math.random() * items.length)] ?? items[0]
 
 const upcomingSessions = computed(() => {
   const now = Date.now()
@@ -104,9 +125,72 @@ const filmBackdropStyle = computed(() => {
   }
 })
 
+const openPaymentStage = ({ phase, title, description, result = '' }) => {
+  paymentState.visible = true
+  paymentState.phase = phase
+  paymentState.title = title
+  paymentState.description = description
+  paymentState.result = result
+}
+
+const closePaymentModal = () => {
+  paymentState.visible = false
+  paymentState.phase = 'idle'
+  paymentState.result = ''
+  paymentState.title = ''
+  paymentState.description = ''
+}
+
+const simulatePayment = async (task) => {
+  paymentState.variant = Math.random() > 0.5 ? 'spark' : 'pulse'
+  openPaymentStage({
+    phase: 'redirect',
+    title: 'Redirection bancaire',
+    description: 'Connexion au prestataire sécurisé…',
+  })
+  await wait(1000)
+  openPaymentStage({
+    phase: 'processing',
+    title: 'Paiement en cours',
+    description: 'Ne ferme pas cette fenêtre, on confirme la transaction.',
+  })
+  const shouldSucceed = Math.random() >= 0.5
+  try {
+    if (!shouldSucceed) {
+      await wait(700)
+      throw new Error('Paiement refusé par la banque.')
+    }
+    await Promise.all([task(), wait(650)])
+    paymentState.variant = Math.random() > 0.5 ? 'spark' : 'pulse'
+    const copy = randomFrom(successCopy)
+    openPaymentStage({
+      phase: 'result',
+      title: copy.title,
+      description: copy.description,
+      result: 'success',
+    })
+    await wait(1300)
+    closePaymentModal()
+  } catch (error) {
+    paymentState.variant = Math.random() > 0.5 ? 'shake' : 'dim'
+    const copy = randomFrom(failureCopy)
+    openPaymentStage({
+      phase: 'result',
+      title: copy.title,
+      description: error?.message || copy.description,
+      result: 'error',
+    })
+    await wait(1500)
+    closePaymentModal()
+    throw error
+  }
+}
+
 const submitReservation = async () => {
   if (!store.state.currentUser) {
-    feedback.value = 'Connecte-toi avant de réserver.'
+    feedback.value = ''
+    const target = route.fullPath || router.currentRoute.value.fullPath
+    router.push({ name: 'login', query: { redirect: target } })
     return
   }
   if (!bookingForm.sessionId) {
@@ -119,10 +203,12 @@ const submitReservation = async () => {
   }
 
   try {
-    await store.addReservation({
-      sessionId: bookingForm.sessionId,
-      seats: Number(bookingForm.seats),
-    })
+    await simulatePayment(() =>
+      store.addReservation({
+        sessionId: bookingForm.sessionId,
+        seats: Number(bookingForm.seats),
+      }),
+    )
     feedback.value = 'Réservation confirmée.'
   } catch (error) {
     feedback.value = error.message
@@ -232,4 +318,27 @@ const durationText = (value) => formatDurationDisplay(value)
       </article>
     </div>
   </section>
+  <Teleport to="body">
+    <transition name="payment-modal-fade">
+      <div v-if="paymentState.visible" class="payment-modal">
+        <div class="payment-modal__backdrop" />
+        <div class="payment-modal__dialog">
+          <div
+            class="payment-modal__icon"
+            :class="[
+              `payment-modal__icon--${paymentState.result || paymentState.phase}`,
+              `payment-modal__icon--${paymentState.variant}`,
+            ]"
+          >
+            <span v-if="paymentState.phase === 'processing' && !paymentState.result" class="payment-modal__spinner" />
+            <span v-else-if="paymentState.result === 'success'" class="payment-modal__glyph">✓</span>
+            <span v-else-if="paymentState.result === 'error'" class="payment-modal__glyph">!</span>
+            <span v-else class="payment-modal__glyph">→</span>
+          </div>
+          <p class="payment-modal__title">{{ paymentState.title }}</p>
+          <p class="payment-modal__text">{{ paymentState.description }}</p>
+        </div>
+      </div>
+    </transition>
+  </Teleport>
 </template>

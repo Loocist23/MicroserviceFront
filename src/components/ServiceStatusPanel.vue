@@ -22,17 +22,16 @@ const services = computed(() => [
   },
 ])
 
-const toggleService = (service) => {
-  const current = store.state.serviceDown[service]
-  store.setServiceStatus(service, !current)
-}
+const statusLabel = (serviceKey) => (store.state.serviceDown[serviceKey] ? 'DOWN' : 'UP')
+const statusClass = (serviceKey) =>
+  store.state.serviceDown[serviceKey] ? 'service-status service-status--down' : 'service-status service-status--up'
 </script>
 
 <template>
   <section class="panel">
     <header class="panel__header">
       <h2>Etat des services Les Jeunot</h2>
-      <p>Active ou coupe un service pour simuler une panne côté billetterie.</p>
+      <p>Lecture seule : statut transmis par les microservices.</p>
     </header>
     <div class="services-grid">
       <article
@@ -45,11 +44,9 @@ const toggleService = (service) => {
           <h3>{{ service.label }}</h3>
           <p>{{ service.description }}</p>
         </div>
-        <button type="button" class="chip" @click="toggleService(service.key)">
-          {{ store.state.serviceDown[service.key] ? 'DOWN' : 'UP' }}
-        </button>
+        <span :class="statusClass(service.key)">{{ statusLabel(service.key) }}</span>
       </article>
     </div>
-    <p class="hint">La liste des films reste disponible même si les autres services sont coupés.</p>
+    <p class="hint">Les statuts passent à DOWN lorsqu’un microservice ne répond plus.</p>
   </section>
 </template>

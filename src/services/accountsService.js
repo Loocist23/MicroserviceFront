@@ -1,4 +1,7 @@
 import { apiAccounts } from './http.js'
+import { clone, isNetworkError } from './network.js'
+import usersMock from './mocks/users.json'
+import reservationsMock from './mocks/reservations.json'
 
 const unwrap = (payload) => (payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload)
 
@@ -41,6 +44,7 @@ const normalizeReservation = (entry) => {
   }
 
   showing = safeJsonParse(showing)
+  const linkedUserId = entry.user_id ?? entry.userId ?? (showing && typeof showing === 'object' ? showing.userId : null)
   if (showing && typeof showing === 'object') {
     const sessionId = showing.sessionId ?? showing.id ?? null
     const createdAt = ensureIso(showing.createdAt ?? entry.createdAt ?? null)
@@ -50,7 +54,7 @@ const normalizeReservation = (entry) => {
       seats: showing.seats ?? showing.quantity ?? 1,
       totalPrice: showing.totalPrice ?? showing.price ?? 0,
       createdAt,
-      ...('userId' in showing ? { userId: showing.userId } : {}),
+      ...(linkedUserId ? { userId: linkedUserId } : {}),
     }
   }
 
@@ -70,9 +74,38 @@ const normalizeReservation = (entry) => {
 const normalizeReservationList = (payload) => {
   const data = unwrap(payload)
   if (!data) return []
-  const source = Array.isArray(data) ? data : Array.isArray(data.showings) ? data.showings : []
+  const source = Array.isArray(data)
+    ? data
+    : Array.isArray(data.showings)
+      ? data.showings
+      : Array.isArray(data.tickets)
+        ? data.tickets
+        : []
   return source.map(normalizeReservation).filter(Boolean)
 }
+
+const normalizeUserList = (payload) => {
+  const data = unwrap(payload)
+  if (!data) return []
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data.users)) return data.users
+  return []
+}
+
+const withAccountsFallback = async (factory, fallback) => {
+  try {
+    return await factory()
+  } catch (error) {
+    if (isNetworkError(error)) {
+      console.warn('[accountsService] API comptes indisponible. Utilisation des fixtures locales.', error)
+      return fallback()
+    }
+    throw error
+  }
+}
+
+const cloneMockUsers = () => clone(usersMock)
+const cloneMockReservations = () => clone(reservationsMock)
 
 export const registerUser = async ({ firstName, lastName, email, age, password }) => {
   const body = {
@@ -130,4 +163,20 @@ export const deleteReservation = async (reservationId, token) => {
   if (!reservationId) return false
   await apiAccounts.delete(`/v1/ticket/${reservationId}`, withToken(token))
   return true
+}
+
+export const listUsers = async (token) => {
+  const payload = await withAccountsFallback(
+    () => apiAccounts.get('/v1/user/', withToken(token)),
+    () => cloneMockUsers(),
+  )
+  return normalizeUserList(payload)
+}
+
+export const listAllReservations = async (token) => {
+  const payload = await withAccountsFallback(
+    () => apiAccounts.get('/v1/ticket/?scope=all', withToken(token)),
+    () => cloneMockReservations(),
+  )
+  return normalizeReservationList(payload)
 }

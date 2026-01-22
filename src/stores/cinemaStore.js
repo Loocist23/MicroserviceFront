@@ -6,6 +6,7 @@ import { normalizeId } from '../utils/id.js'
 
 const PRICING_PREF_KEY = 'archlogifront:pricing'
 const AUTH_SESSION_KEY = 'archlogifront:session'
+const FILMS_CACHE_KEY = 'archlogifront:films-cache'
 
 const safeStorage = () => {
   if (typeof window === 'undefined') return null
@@ -69,6 +70,14 @@ const persistAuthSession = (session) => {
   writeJsonStorage(AUTH_SESSION_KEY, hasSession ? session : null)
 }
 
+const loadFilmsCache = () => {
+  return readJsonStorage(FILMS_CACHE_KEY) ?? []
+}
+
+const persistFilmsCache = (films) => {
+  writeJsonStorage(FILMS_CACHE_KEY, Array.isArray(films) ? films : [])
+}
+
 const enrichUserProfile = (payload) => {
   if (!payload) return null
   const firstName = payload.firstname ?? payload.firstName ?? ''
@@ -117,6 +126,17 @@ const state = reactive({
     accounts: false,
   },
 })
+
+const hydrateFilmsFromCache = () => {
+  const cachedFilms = loadFilmsCache()
+  if (Array.isArray(cachedFilms) && cachedFilms.length) {
+    state.films = cachedFilms
+    return true
+  }
+  return false
+}
+
+hydrateFilmsFromCache()
 
 const ensureService = (key) => {
   if (state.serviceDown[key]) {
@@ -204,11 +224,19 @@ const fetchFilms = async () => {
   state.loading.films = true
   resetError('films')
   try {
-    state.films = await filmsService.listFilms()
+    const films = await filmsService.listFilms()
+    state.films = films
+    persistFilmsCache(films)
     state.serviceDown.films = false
   } catch (error) {
     setError('films', error)
     state.serviceDown.films = true
+    if (!state.films.length) {
+      const hydrated = hydrateFilmsFromCache()
+      if (!hydrated && Array.isArray(error?.offlinePayload) && error.offlinePayload.length) {
+        state.films = error.offlinePayload
+      }
+    }
   } finally {
     state.loading.films = false
   }
@@ -283,6 +311,7 @@ const addFilm = async (payload) => {
   ensureService('films')
   const created = await filmsService.createFilm(payload)
   state.films.push(created)
+  persistFilmsCache(state.films)
   return created
 }
 
@@ -290,6 +319,7 @@ const editFilm = async (id, payload) => {
   ensureService('films')
   const updated = await filmsService.updateFilm(id, payload)
   state.films = state.films.map((film) => (film.id === id ? updated : film))
+  persistFilmsCache(state.films)
 }
 
 const removeFilm = async (id) => {
@@ -302,6 +332,7 @@ const removeFilm = async (id) => {
     await removeSession(session.id)
   }
   state.films = state.films.filter((film) => film.id !== id)
+  persistFilmsCache(state.films)
 }
 
 const addSession = async (payload) => {
@@ -455,6 +486,9 @@ const upcomingSessionsByFilm = computed(() => {
 })
 
 const filmsWithUpcomingSessions = computed(() => {
+  if (state.serviceDown.sessions) {
+    return [...state.films]
+  }
   const map = upcomingSessionsByFilm.value
   return state.films.filter((film) => (map[normalizeId(film.id)] ?? []).length > 0)
 })

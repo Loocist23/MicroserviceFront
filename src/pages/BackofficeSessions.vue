@@ -1,7 +1,7 @@
 <script setup>
-import SessionsPanel from '../components/SessionsPanel.vue'
+import FilmsPanel from '../components/FilmsPanel.vue'
 </script>
 
 <template>
-  <SessionsPanel />
+  <FilmsPanel />
 </template>

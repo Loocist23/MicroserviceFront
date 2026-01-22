@@ -1,73 +1,58 @@
-# Les Jeunot — Billetterie cinéma
+# Les Jeunot — billets cinéma (Architecture microservices)
 
-Site officiel du cinéma “Les Jeunot”, réalisé en Vue 3 + Vite + Vue Router. Le front-end consomme
-(via mocks) trois microservices indépendants et couvre toutes les fonctionnalités attendues :
-films, séances, comptes, réservation avec vérification du nombre de places.
+Application Vue 3 + Vite qui dialogue avec trois microservices (films, séances, comptes) et couvre tout le périmètre demandé dans l’exercice noté. Cette page résume **ce que le site permet** et **quelles options bonus sont déjà actives**.
 
-## Techno & microservices
+## Fonctionnalités principales
 
-| Domaine             | Pile choisie                    | Base simulée | Rôle principal                                         |
-| ------------------- | ------------------------------- | ------------ | ------------------------------------------------------ |
-| Films               | NodeJS · Express                | MySQL        | CRUD des films, genres et restrictions d’âge           |
-| Comptes / réserv.   | Python · Flask                  | PostgreSQL   | Comptes, rôles, tarifs, réservations et authentif.     |
-| Séances / salles    | NodeJS · Express                | MySQL        | Gestion des salles, horaires, disponibilités de place  |
+- Catalogue public des films à l’affiche, affichable même si les services comptes/séances sont down.
+- Fiche film détaillée avec séances futures, choix du film verrouillé pendant la réservation.
+- Inscription / connexion utilisateur (formulaire classique, stockage JWT access+refresh).
+- Gestion des profils utilisateur (coordonnées, rôle) avec redirection après connexion.
+- Réservation de places sur une séance avec contrôle du stock (`seatsRemaining`), calcul du total et animation de paiement.
+- Historique personnel des réservations trié du plus récent au plus ancien.
+- Redirection automatique vers `/login` lorsqu’un visiteur non connecté tente de réserver, puis retour à la page d’origine après identification.
 
-Le front embarque des mocks pour chacun de ces services (`src/services/*`) afin de pouvoir
-travailler hors-ligne. Le panneau “Etat des microservices” permet de simuler une panne par service.
-Même si Comptes ou Séances sont coupés, la liste des films reste accessible (bonus demandé).
+## Espace back-office
 
-## Démarrer
+- Dashboard administrateur avec filtres temporels (3j, semaine, mois, trimestre, an), graphiques interactifs et tooltips au survol.
+- Gestion complète des films : Ajouter / Modifier / Supprimer (Nom, Genre, Durée, Année, Réalisateur, Synopsis, Age).
+- Gestion complète des séances fusionnée au même écran : création guidée juste après l’ajout d’un film, édition et suppression en un clic.
+- Vue par film des séances classées par jour, avec capacité restante et salle.
+- Aperçu global des réservations (table triée, cumul des places et du CA estimé).
+- Consultation de tous les comptes (login, nom, email, rôle, tarif) dès qu’on est admin.
+- Panel d’état des microservices en lecture seule (Films, Séances, Comptes) indiquant UP/DOWN.
+
+## Microservices & technos
+
+- Films : Node.js / Express, base MySQL, CRUD catalogue et métadonnées (affiches OMDb facultatives).
+- Séances & salles : Node.js / Express, base MySQL, gestion des salles, tarifs et disponibilités.
+- Comptes & réservations : Python / Flask, base PostgreSQL, authentification JWT (login + refresh), création de tickets.
+- Scripts SQL fournis dans `for-bdd/` pour initialiser chaque base séparément.
+
+## Workflows utilisateurs
+
+- Ajouter / Modifier / Supprimer un film (Nom, Genre, Durée, Année, Réalisateur, Synopsis, Age).
+- Ajouter / Modifier / Supprimer une séance (Film, Salle, Horaire, Capacité, Type, Prix).
+- S’inscrire avec prénom, nom, email, mot de passe, âge.
+- Se connecter, conserver la session (access + refresh token).
+- Réserver une séance avec vérification du quota et génération d’un ticket côté microservice comptes.
+- Consulter ses réservations dans le profil, consulter les films même si Comptes ou Séances sont indisponibles.
+
+## Démarrage rapide
 
 ```bash
 npm install
-npm run dev
-# puis ouvrir http://localhost:5173
-```
+npm run dev    # http://localhost:5173
 
-Pour un build de production :
-
-```bash
 npm run build
 npm run preview
 ```
 
-## Métadonnées IMDb / OMDb
+## Bonus
 
-Le front tente d’enrichir automatiquement chaque film avec l’affiche et la durée récupérées depuis les
-APIs publiques d’IMDb (via OMDb). Pour activer la durée automatique, génère une clé sur
-[omdbapi.com](https://www.omdbapi.com/apikey.aspx) puis crée un fichier `.env` à la racine :
+### Bonus réalisés
+- Permettre de consulter la liste des films même si les services Comptes/Séances sont hors ligne.
+- Mettre en place une authentification JWT complète (login, refresh, access token).
 
-```
-VITE_OMDB_API_KEY=ta_cle_personnelle
-```
-
-Sans clé, les durées renseignées manuellement dans le back-office sont conservées telles quelles.
-
-## Pages / fonctionnalités
-
-- **Accueil (/**)** : hero marketing, présentation des services Les Jeunot et section “À l’affiche”
-  consultable même si les autres services sont coupés.
-- **Catalogue (/catalogue)** : sélectionne un film qui dispose de séances à venir puis réserve en
-  ligne via la page `/catalogue/:filmId` avec contrôle des places restantes et tarification dynamique.
-- **Connexion (/login)** : création de compte, connexion, suivi du profil actif.
-- **Back-office (/backoffice)** : état des services, gestion du catalogue films et des séances.
-- **Bonus techniques** : bascule d’état pour simuler une panne, tarifs spéciaux (Etudiant, -16 ans,
-  Chômeur…), architecture prête pour brancher une auth JWT/OAuth réelle.
-
-## Conformité avec le cahier des charges “Architecture microservices”
-
-| Exigence | Implémentation |
-| --- | --- |
-| 3 microservices minimum | • Films + séances : Node/Express (API `/api/films`, `/api/show`, `/api/room`)<br>• Comptes & réservations : Python/Flask (API `/v1/user`, `/v1/ticket`)<br>Chaque service possède ses schémas SQL dédiés (`for-bdd/*.sql`). |
-| Technologies différentes | NodeJS pour films/séances, Python (Flask) pour comptes. |
-| Bases indépendantes | Scripts SQL distincts pour chaque microservice ; aucune base partagée. |
-| CRUD Films | Backoffice `/backoffice/catalogue` branché sur `/api/films` (ajout, édition, suppression). |
-| CRUD Séances | Backoffice `/backoffice/sessions` branché sur `/api/show` (room, horaire, nb de places, prix). |
-| Comptes utilisateurs | Formulaire inscription/connexion (`/login`) relié aux routes `/v1/user/*` avec stockage JWT (access + refresh). |
-| Réservation avec quota | `ReservationsPanel` vérifie `seatsTaken` vs `seatsTotal`, appelle `/api/show/:id/reserve` puis crée un ticket via `/v1/ticket/`. |
-| Hébergement local navigateur | Front Vue 3 (Vite) → `npm run dev` ; chaque service tourne en local (Docker ou node/python). |
-| Bonus “catalogue accessible si autres services down” | Store `serviceDown` + mocks pour films/seances/comptes ; listing films reste disponible même si comptes/séances sont coupés. |
-| Bonus “tarifs selon profil” | `PRICING_RULES` (standard, étudiant, -16, chômeur, …) + champ `price` par séance ; total calculé dynamiquement selon la séance et/ou le profil. |
-| Bonus “authentification OAuth/JWT” | Service comptes expose une authentification JWT complète (login, refresh, access token). |
-
-> Pour la soutenance : lancer chaque microservice (films, séances, comptes) avec les scripts fournis, puis `npm run dev` pour le front. Les API exposées correspondent au périmètre demandé et peuvent être vérifiées via les docs résumées ci-dessus.
+### Bonus faciles à ajouter
+- Gérer les tarifs en fonction des types d’utilisateur (étudiant, -16 ans, chômeur, …).

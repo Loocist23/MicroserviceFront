@@ -1,11 +1,36 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useCinemaStore } from '../stores/cinemaStore.js'
 import LineChart from '../components/LineChart.vue'
 
 const store = useCinemaStore()
 
-const CHART_DAYS = 7
+const RANGE_PRESETS = [
+  { key: '3d', label: '3 jours', days: 3 },
+  { key: '7d', label: '1 semaine', days: 7 },
+  { key: '30d', label: '1 mois', days: 30 },
+  { key: '90d', label: '1 trimestre', days: 90 },
+  { key: '365d', label: '1 an', days: 365 },
+]
+
+const selectedRangeKey = ref('7d')
+const selectedRange = computed(() => RANGE_PRESETS.find((entry) => entry.key === selectedRangeKey.value) ?? RANGE_PRESETS[1])
+const selectedRangeLabel = computed(() => selectedRange.value.label)
+const selectedRangeDays = computed(() => selectedRange.value.days)
+const rangeStartTimestamp = computed(() => {
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() - (selectedRangeDays.value - 1))
+  return start.getTime()
+})
+const reservationsInRange = computed(() => {
+  const start = rangeStartTimestamp.value
+  const now = Date.now()
+  return store.state.reservations.filter((reservation) => {
+    const ts = new Date(reservation.createdAt).getTime()
+    return Number.isFinite(ts) && ts >= start && ts <= now
+  })
+})
 
 const dateRange = (days) => {
   const result = []
@@ -21,7 +46,7 @@ const dateRange = (days) => {
 }
 
 const dailyAggregates = computed(() =>
-  store.state.reservations.reduce((acc, reservation) => {
+  reservationsInRange.value.reduce((acc, reservation) => {
     const key = new Date(reservation.createdAt).toISOString().slice(0, 10)
     acc[key] = acc[key] ?? { seats: 0, totalPrice: 0 }
     acc[key].seats += reservation.seats
@@ -31,7 +56,7 @@ const dailyAggregates = computed(() =>
 )
 
 const buildSeries = (field) =>
-  dateRange(CHART_DAYS).map(({ iso, label }) => ({
+  dateRange(selectedRangeDays.value).map(({ iso, label }) => ({
     label,
     value: dailyAggregates.value[iso]?.[field] ?? 0,
   }))
@@ -43,11 +68,8 @@ const metrics = computed(() => {
   const totalFilms = store.state.films.length
   const totalSessions = store.state.sessions.length
   const totalUsers = store.state.users.length
-  const seatsSold = store.state.reservations.reduce((sum, reservation) => sum + reservation.seats, 0)
-  const revenue = store.state.reservations.reduce(
-    (sum, reservation) => sum + reservation.totalPrice,
-    0,
-  )
+  const seatsSold = reservationsInRange.value.reduce((sum, reservation) => sum + reservation.seats, 0)
+  const revenue = reservationsInRange.value.reduce((sum, reservation) => sum + reservation.totalPrice, 0)
   const seatTotals = store.state.sessions.reduce(
     (acc, session) => {
       const capacity = Math.max(0, Number(session.seatsTotal) || 0)
@@ -103,7 +125,7 @@ const recentReservations = computed(() => {
     return acc
   }, {})
 
-  return [...store.state.reservations]
+  return [...reservationsInRange.value]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 5)
     .map((reservation) => {
@@ -125,9 +147,23 @@ const recentReservations = computed(() => {
 
 <template>
   <section class="panel dashboard-panel">
-    <header class="panel__header">
-      <h2>Tableau de bord</h2>
-      <p>Vue synthétique de l’activité billetterie.</p>
+    <header class="panel__header dashboard-header">
+      <div>
+        <h2>Tableau de bord</h2>
+        <p>Vue synthétique de l’activité billetterie.</p>
+      </div>
+      <div class="dashboard-range">
+        <button
+          v-for="preset in RANGE_PRESETS"
+          :key="preset.key"
+          type="button"
+          class="dashboard-range__chip"
+          :class="{ 'dashboard-range__chip--active': preset.key === selectedRangeKey }"
+          @click="selectedRangeKey = preset.key"
+        >
+          {{ preset.label }}
+        </button>
+      </div>
     </header>
 
     <div class="stats-grid">
@@ -160,7 +196,7 @@ const recentReservations = computed(() => {
     <div class="charts-grid">
       <article class="chart-card">
         <header>
-          <h3>Revenus sur 7 jours</h3>
+          <h3>Revenus · {{ selectedRangeLabel }}</h3>
           <p class="muted">Somme des ventes quotidiennes (en euros)</p>
         </header>
         <LineChart :series="dailyRevenueSeries" unit="€" />
@@ -174,7 +210,7 @@ const recentReservations = computed(() => {
 
       <article class="chart-card">
         <header>
-          <h3>Places vendues sur 7 jours</h3>
+          <h3>Places vendues · {{ selectedRangeLabel }}</h3>
           <p class="muted">Nombre de billets confirmés par jour</p>
         </header>
         <LineChart :series="dailySeatsSeries" />
