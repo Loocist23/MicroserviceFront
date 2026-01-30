@@ -2,6 +2,7 @@
 import { reactive, ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useCinemaStore } from '../stores/cinemaStore.js'
+import { listTariffs, DEFAULT_BASE_PRICE } from '../utils/pricing.js'
 
 const store = useCinemaStore()
 const router = useRouter()
@@ -24,11 +25,21 @@ const loginForm = reactive({
 const registerFeedback = ref('')
 const loginFeedback = ref('')
 
+const sampleBasePrice = computed(() => {
+  const firstPricedSession = store.state.sessions.find((session) => Number(session.price) > 0)
+  return Number(firstPricedSession?.price) || DEFAULT_BASE_PRICE
+})
+
 const pricingOptions = computed(() =>
-  Object.entries(store.PRICING_RULES).map(([value, price]) => ({
-    value,
-    label: `${value === 'standard' ? 'Plein tarif' : value} (${price}€)`,
-  })),
+  listTariffs(sampleBasePrice.value).map((option) => {
+    const savingsText = option.discount
+      ? `soit -${option.discount} € / place (tu paies ${option.price} €)`
+      : '(plein tarif)'
+    return {
+      value: option.value,
+      label: `${option.label} ${savingsText}`,
+    }
+  }),
 )
 
 const redirectToProfile = () => {

@@ -4,6 +4,12 @@ import { useRouter, useRoute } from 'vue-router'
 import { useCinemaStore } from '../stores/cinemaStore.js'
 import { formatAgeRatingDisplay, formatDurationDisplay } from '../utils/filmFormatting.js'
 import { normalizeId } from '../utils/id.js'
+import {
+  DEFAULT_TARIFF,
+  DEFAULT_BASE_PRICE,
+  formatTariffLabel,
+  discountForTariff,
+} from '../utils/pricing.js'
 
 const props = defineProps({
   selectedFilmId: {
@@ -35,6 +41,11 @@ const paymentState = reactive({
   description: '',
   variant: 'calm',
 })
+let paymentToggle = false
+const nextPaymentShouldSucceed = () => {
+  paymentToggle = !paymentToggle
+  return paymentToggle
+}
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const successCopy = [
   { title: 'Paiement confirmé', description: 'Tes billets sont prêts, un reçu arrive par mail.' },
@@ -106,8 +117,21 @@ const selectedSession = computed(
   () =>
     store.state.sessions.find((session) => normalizeId(session.id) === bookingForm.sessionId) ?? null,
 )
+const sessionBasePrice = (session) => {
+  const numeric = Number(session?.price)
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : DEFAULT_BASE_PRICE
+}
+const bookingBasePrice = computed(() => sessionBasePrice(selectedSession.value))
 const pricePerSeat = computed(() => store.seatPriceForSession(selectedSession.value))
 const totalPrice = computed(() => (bookingForm.seats || 0) * pricePerSeat.value)
+const activeTariff = computed(() => {
+  if (!store.state.currentUser) return DEFAULT_TARIFF
+  return store.state.currentUser.pricing ?? store.state.currentUser.tariff ?? DEFAULT_TARIFF
+})
+const activeTariffLabel = computed(() => formatTariffLabel(activeTariff.value))
+const discountDetails = computed(() =>
+  discountForTariff(bookingBasePrice.value, activeTariff.value, Number(bookingForm.seats) || 1),
+)
 
 const currentFilm = computed(
   () => store.state.films.find((film) => normalizeId(film.id) === bookingForm.filmId) ?? null,
@@ -154,7 +178,7 @@ const simulatePayment = async (task) => {
     title: 'Paiement en cours',
     description: 'Ne ferme pas cette fenêtre, on confirme la transaction.',
   })
-  const shouldSucceed = Math.random() >= 0.5
+  const shouldSucceed = nextPaymentShouldSucceed()
   try {
     if (!shouldSucceed) {
       await wait(700)
@@ -223,6 +247,24 @@ const filmName = (filmId) =>
 const history = store.reservationHistory
 const ageRatingText = (value) => formatAgeRatingDisplay(value)
 const durationText = (value) => formatDurationDisplay(value)
+const historySavings = (reservation) => {
+  if (!reservation) return 0
+  const appliedTariff =
+    reservation.tariff ??
+    store.state.currentUser?.pricing ??
+    store.state.currentUser?.tariff ??
+    DEFAULT_TARIFF
+  const session =
+    reservation.sessionId &&
+    store.state.sessions.find(
+      (sessionEntry) => normalizeId(sessionEntry.id) === normalizeId(reservation.sessionId),
+    )
+  const rawSessionPrice = session ? Number(session.price) : NaN
+  const sessionPrice = Number.isFinite(rawSessionPrice) && rawSessionPrice > 0 ? rawSessionPrice : null
+  const basePrice = sessionPrice ?? reservation.basePrice ?? DEFAULT_BASE_PRICE
+  const { total } = discountForTariff(basePrice, appliedTariff, reservation.seats)
+  return total
+}
 </script>
 
 <template>
@@ -293,7 +335,14 @@ const durationText = (value) => formatDurationDisplay(value)
           <input v-model.number="bookingForm.seats" type="number" min="1" />
         </label>
         <p class="muted">Places restantes : {{ seatsLeft }}</p>
-        <p class="muted">Tarif appliqué : {{ pricePerSeat }} € · Total : {{ totalPrice }} €</p>
+        <p class="muted">
+          Tarif {{ activeTariffLabel }} : {{ pricePerSeat }} € / place
+          <template v-if="store.state.currentUser && discountDetails.hasDiscount">
+            · Économie {{ discountDetails.perSeat }} € / place
+            <span v-if="bookingForm.seats > 1">({{ discountDetails.total }} € au total)</span>
+          </template>
+          · Total : {{ totalPrice }} €
+        </p>
         <button type="submit" class="primary" :disabled="!store.state.currentUser">
           Réserver
         </button>
@@ -313,6 +362,9 @@ const durationText = (value) => formatDurationDisplay(value)
               dateStyle: 'short',
               timeStyle: 'short',
             }) }}
+            <span v-if="historySavings(reservation)" class="muted">
+              · {{ historySavings(reservation) }} € économisés vs plein tarif
+            </span>
           </li>
         </ul>
       </article>

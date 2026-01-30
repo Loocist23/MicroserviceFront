@@ -2,11 +2,35 @@
 import { computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useCinemaStore } from '../stores/cinemaStore.js'
+import {
+  formatTariffLabel,
+  discountForTariff,
+  DEFAULT_TARIFF,
+  DEFAULT_BASE_PRICE,
+} from '../utils/pricing.js'
 
 const store = useCinemaStore()
 const router = useRouter()
 
 const user = computed(() => store.state.currentUser)
+const userTariffLabel = computed(() =>
+  user.value ? formatTariffLabel(user.value.pricing ?? user.value.tariff) : '',
+)
+const savingsForReservation = (reservation) => {
+  if (!reservation) return 0
+  const appliedTariff =
+    reservation.tariff ??
+    user.value?.pricing ??
+    user.value?.tariff ??
+    DEFAULT_TARIFF
+  const session = store.state.sessions.find((sessionEntry) => sessionEntry.id === reservation.sessionId)
+  const sessionPrice = session ? Number(session.price) : NaN
+  const basePrice = Number.isFinite(sessionPrice) && sessionPrice > 0
+    ? sessionPrice
+    : reservation.basePrice || DEFAULT_BASE_PRICE
+  const { total } = discountForTariff(basePrice, appliedTariff, reservation.seats)
+  return total
+}
 const history = store.reservationHistory
 
 const logout = () => {
@@ -35,7 +59,7 @@ const logout = () => {
           <li><strong>Nom complet</strong><span>{{ user?.firstName }} {{ user?.lastName }}</span></li>
           <li><strong>Email</strong><span>{{ user?.email }}</span></li>
           <li><strong>Rôle</strong><span>{{ user?.role }}</span></li>
-          <li><strong>Tarif appliqué</strong><span>{{ user?.pricing }}</span></li>
+          <li><strong>Tarif appliqué</strong><span>{{ userTariffLabel }}</span></li>
           <li><strong>Âge</strong><span>{{ user?.age }} ans</span></li>
         </ul>
         <button type="button" class="ghost" @click="logout">Se déconnecter</button>
@@ -72,6 +96,9 @@ const logout = () => {
                 timeStyle: 'short',
               })
             }}
+            <span v-if="savingsForReservation(reservation)" class="muted">
+              · {{ savingsForReservation(reservation) }} € économisés vs plein tarif
+            </span>
           </span>
         </li>
       </ul>

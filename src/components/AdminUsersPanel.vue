@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useCinemaStore } from '../stores/cinemaStore.js'
+import { formatTariffLabel } from '../utils/pricing.js'
 
 const store = useCinemaStore()
 
@@ -14,6 +15,8 @@ const stats = computed(() => {
 const users = computed(() =>
   [...store.state.users].sort((a, b) => a.login.localeCompare(b.login, 'fr')),
 )
+
+const pricingLabel = (value) => formatTariffLabel(value)
 </script>
 
 <template>
@@ -55,7 +58,7 @@ const users = computed(() =>
             <td>{{ user.firstName }} {{ user.lastName }}</td>
             <td>{{ user.email }}</td>
             <td>{{ user.role }}</td>
-            <td>{{ user.pricing }}</td>
+            <td>{{ pricingLabel(user.pricing ?? user.tariff) }}</td>
           </tr>
         </tbody>
       </table>

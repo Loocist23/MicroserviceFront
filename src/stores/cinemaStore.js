@@ -3,10 +3,19 @@ import * as filmsService from '../services/filmsService.js'
 import * as sessionsService from '../services/sessionsService.js'
 import * as accountsService from '../services/accountsService.js'
 import { normalizeId } from '../utils/id.js'
+import {
+  DEFAULT_TARIFF,
+  DEFAULT_BASE_PRICE,
+  normalizeTariff,
+  priceForTariff,
+  formatTariffLabel,
+  listTariffs,
+} from '../utils/pricing.js'
 
 const PRICING_PREF_KEY = 'archlogifront:pricing'
 const AUTH_SESSION_KEY = 'archlogifront:session'
 const FILMS_CACHE_KEY = 'archlogifront:films-cache'
+const PRICING_RULES = Object.fromEntries(listTariffs().map((entry) => [entry.value, entry.price]))
 
 const safeStorage = () => {
   if (typeof window === 'undefined') return null
@@ -51,7 +60,7 @@ const readPricingPreference = (email) => {
 const writePricingPreference = (email, pricing) => {
   if (!email || !pricing) return
   const prefs = loadPricingPreferences()
-  prefs[email] = pricing
+  prefs[email] = normalizeTariff(pricing)
   writeJsonStorage(PRICING_PREF_KEY, prefs)
 }
 
@@ -84,7 +93,8 @@ const enrichUserProfile = (payload) => {
   const emailLogin = payload.email ? payload.email.split('@')[0] : ''
   const fallbackName = firstName || (payload.lastname ?? 'user')
   const login = payload.login ?? (emailLogin || fallbackName || 'user')
-  const pricing = payload.pricing ?? readPricingPreference(payload.email) ?? 'standard'
+  const storedPreference = readPricingPreference(payload.email)
+  const pricing = normalizeTariff(payload.tariff ?? payload.pricing ?? storedPreference ?? DEFAULT_TARIFF)
   return {
     id: payload.id ?? payload.uuid ?? payload.email ?? `user-${Date.now()}`,
     ...payload,
@@ -92,14 +102,8 @@ const enrichUserProfile = (payload) => {
     lastName: payload.lastname ?? payload.lastName ?? '',
     login,
     pricing,
+    tariff: pricing,
   }
-}
-
-const PRICING_RULES = {
-  standard: 12,
-  etudiant: 9,
-  '-16': 7,
-  chomeur: 8,
 }
 
 const state = reactive({
@@ -275,10 +279,19 @@ const fetchAccounts = async () => {
       isAdmin ? accountsService.listAllReservations(token) : accountsService.listReservations(token),
     )
     const userId = state.currentUser?.id ?? null
-    state.reservations = reservations.map((reservation) => ({
-      ...reservation,
-      userId: reservation.userId ?? userId ?? undefined,
-    }))
+    state.reservations = reservations.map((reservation) => {
+      const session =
+        reservation.sessionId &&
+        state.sessions.find(
+          (sessionEntry) => normalizeId(sessionEntry.id) === normalizeId(reservation.sessionId),
+        )
+      return {
+        ...reservation,
+        userId: reservation.userId ?? userId ?? undefined,
+        basePrice:
+          reservation.basePrice ?? (session ? basePriceForSession(session) : DEFAULT_BASE_PRICE),
+      }
+    })
     if (isAdmin) {
       const users = await withAccessToken((token) => accountsService.listUsers(token))
       state.users = users.map((entry) => enrichUserProfile(entry))
@@ -365,16 +378,25 @@ const removeSession = async (id) => {
   state.reservations = state.reservations.filter((reservation) => reservation.sessionId !== id)
 }
 
-const registerUser = async ({ firstName, lastName, email, age, password, pricing = 'standard' }) => {
+const registerUser = async ({
+  firstName,
+  lastName,
+  email,
+  age,
+  password,
+  pricing = DEFAULT_TARIFF,
+}) => {
   ensureService('accounts')
+  const normalizedTariff = normalizeTariff(pricing)
   await accountsService.registerUser({
     firstName,
     lastName,
     email,
     age,
     password,
+    tariff: normalizedTariff,
   })
-  writePricingPreference(email, pricing)
+  writePricingPreference(email, normalizedTariff)
   await login({ email, password })
   return state.currentUser
 }
@@ -398,15 +420,19 @@ const remainingSeatsForSession = (session) => {
   return Math.max(0, total - taken)
 }
 
-const seatPriceForSession = (session) => {
+const basePriceForSession = (session) => {
   const numericPrice = Number(session?.price)
-  if (Number.isFinite(numericPrice) && numericPrice >= 0) {
+  if (Number.isFinite(numericPrice) && numericPrice > 0) {
     return numericPrice
   }
-  if (state.currentUser?.pricing && PRICING_RULES[state.currentUser.pricing]) {
-    return PRICING_RULES[state.currentUser.pricing]
-  }
-  return PRICING_RULES.standard
+  return DEFAULT_BASE_PRICE
+}
+
+const seatPriceForSession = (session) => {
+  const basePrice = basePriceForSession(session)
+  const appliedTariff =
+    state.currentUser?.pricing ?? state.currentUser?.tariff ?? DEFAULT_TARIFF
+  return priceForTariff(basePrice, appliedTariff)
 }
 
 const addReservation = async ({ sessionId, seats }) => {
@@ -423,23 +449,35 @@ const addReservation = async ({ sessionId, seats }) => {
   }
 
   const updatedSession = await sessionsService.reserveSeats(sessionId, seats)
+  const basePrice = basePriceForSession(session)
   const pricePerSeat = seatPriceForSession(session)
   const showingPayload = {
     sessionId,
     seats,
+    basePrice,
     totalPrice: seats * pricePerSeat,
     createdAt: new Date().toISOString(),
   }
-  const reservation = await withAccessToken((token) => accountsService.addReservation(showingPayload, token))
+  const reservation = await withAccessToken((token) =>
+    accountsService.addReservation(showingPayload, token),
+  )
   const targetId = normalizeId(sessionId)
   state.sessions = state.sessions.map((item) =>
     normalizeId(item.id) === targetId ? updatedSession : item,
   )
   const normalizedReservation = {
-    ...showingPayload,
-    ...(reservation ?? {}),
     id: reservation?.id ?? reservation?.uuid ?? `reservation-${Date.now()}`,
-    userId: state.currentUser.id,
+    sessionId: reservation?.sessionId ?? sessionId,
+    seats: reservation?.seats ?? seats,
+    totalPrice: reservation?.totalPrice ?? showingPayload.totalPrice,
+    createdAt: reservation?.createdAt ?? showingPayload.createdAt,
+    userId: reservation?.userId ?? state.currentUser.id,
+    basePrice: reservation?.basePrice ?? basePrice,
+    tariff:
+      reservation?.tariff ??
+      state.currentUser?.pricing ??
+      state.currentUser?.tariff ??
+      DEFAULT_TARIFF,
   }
   state.reservations.push(normalizedReservation)
   return normalizedReservation
@@ -532,4 +570,5 @@ export const useCinemaStore = () => ({
   remainingSeats: remainingSeatsForSession,
   seatPriceForSession,
   PRICING_RULES,
+  pricingLabel: formatTariffLabel,
 })

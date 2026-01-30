@@ -2,6 +2,11 @@
 import { computed, ref } from 'vue'
 import { useCinemaStore } from '../stores/cinemaStore.js'
 import LineChart from '../components/LineChart.vue'
+import {
+  formatTariffLabel,
+  discountForTariff,
+  DEFAULT_BASE_PRICE,
+} from '../utils/pricing.js'
 
 const store = useCinemaStore()
 
@@ -132,10 +137,18 @@ const recentReservations = computed(() => {
       const session = sessionIndex.value[reservation.sessionId]
       const filmName = session ? filmIndex.value[session.filmId] : 'Film inconnu'
       const userName = userIndex[reservation.userId]?.login ?? 'Utilisateur inconnu'
+      const basePrice =
+        (session && Number(session.price)) ||
+        reservation.basePrice ||
+        DEFAULT_BASE_PRICE
+      const savings = discountForTariff(basePrice, reservation.tariff, reservation.seats)
       return {
         ...reservation,
         filmName,
         userName,
+        tariffLabel: formatTariffLabel(reservation.tariff),
+        savingsTotal: savings.total,
+        hasDiscount: savings.hasDiscount,
         formattedDate: new Date(reservation.createdAt).toLocaleString('fr-FR', {
           dateStyle: 'short',
           timeStyle: 'short',
@@ -240,7 +253,13 @@ const recentReservations = computed(() => {
         <ul class="dashboard-list">
           <li v-for="reservation in recentReservations" :key="reservation.id">
             <strong>{{ reservation.userName }}</strong>
-            <span>{{ reservation.filmName }} · {{ reservation.seats }} place(s) · {{ reservation.totalPrice }} € · {{ reservation.formattedDate }}</span>
+            <span>
+              {{ reservation.filmName }} · {{ reservation.seats }} place(s) ·
+              {{ reservation.tariffLabel }} · {{ reservation.totalPrice }} € · {{ reservation.formattedDate }}
+              <template v-if="reservation.hasDiscount">
+                · {{ reservation.savingsTotal }} € économisés vs plein tarif
+              </template>
+            </span>
           </li>
           <li v-if="!recentReservations.length" class="muted">Aucune réservation pour l’instant.</li>
         </ul>

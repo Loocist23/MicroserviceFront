@@ -2,6 +2,7 @@ import { apiAccounts } from './http.js'
 import { clone, isNetworkError } from './network.js'
 import usersMock from './mocks/users.json'
 import reservationsMock from './mocks/reservations.json'
+import { normalizeTariff } from '../utils/pricing.js'
 
 const unwrap = (payload) => (payload && typeof payload === 'object' && 'data' in payload ? payload.data : payload)
 
@@ -44,17 +45,46 @@ const normalizeReservation = (entry) => {
   }
 
   showing = safeJsonParse(showing)
-  const linkedUserId = entry.user_id ?? entry.userId ?? (showing && typeof showing === 'object' ? showing.userId : null)
+  const linkedUserId =
+    entry.user_id ?? entry.userId ?? (showing && typeof showing === 'object' ? showing.userId : null)
   if (showing && typeof showing === 'object') {
-    const sessionId = showing.sessionId ?? showing.id ?? null
-    const createdAt = ensureIso(showing.createdAt ?? entry.createdAt ?? null)
+    const sessionId =
+      showing.sessionId ??
+      showing.session_id ??
+      showing.session ??
+      entry.session_id ??
+      entry.sessionId ??
+      showing.id ??
+      entry.session ??
+      null
+    const createdAt = ensureIso(showing.createdAt ?? entry.created_at ?? entry.createdAt ?? null)
+    const seats =
+      Number(
+        showing.seats ?? showing.quantity ?? entry.seats ?? entry.quantity ?? entry.seatCount ?? 1,
+      ) || 1
+    const priceFromApi = entry.price_cents ?? entry.priceCents ?? null
+    const totalPrice = Number.isFinite(Number(priceFromApi))
+      ? Number(priceFromApi) / 100
+      : Number(showing.totalPrice ?? entry.totalPrice ?? entry.price ?? 0) || 0
+    const tariff = normalizeTariff(entry.tariff ?? showing.tariff ?? null)
+    const basePriceValue =
+      Number(
+        showing.basePrice ??
+          showing.base_price ??
+          entry.basePrice ??
+          entry.base_price ??
+          entry.standard_price ??
+          0,
+      ) || null
     return {
       id: uuid ?? sessionId ?? `ticket-${Date.now()}`,
       sessionId,
-      seats: showing.seats ?? showing.quantity ?? 1,
-      totalPrice: showing.totalPrice ?? showing.price ?? 0,
+      seats,
+      totalPrice,
       createdAt,
       ...(linkedUserId ? { userId: linkedUserId } : {}),
+      tariff,
+      ...(basePriceValue ? { basePrice: basePriceValue } : {}),
     }
   }
 
@@ -65,6 +95,9 @@ const normalizeReservation = (entry) => {
       seats: 1,
       totalPrice: 0,
       createdAt: ensureIso(entry.createdAt ?? null),
+      tariff: normalizeTariff(entry.tariff ?? null),
+      ...(linkedUserId ? { userId: linkedUserId } : {}),
+      ...(entry.basePrice ? { basePrice: Number(entry.basePrice) || undefined } : {}),
     }
   }
 
@@ -107,13 +140,15 @@ const withAccountsFallback = async (factory, fallback) => {
 const cloneMockUsers = () => clone(usersMock)
 const cloneMockReservations = () => clone(reservationsMock)
 
-export const registerUser = async ({ firstName, lastName, email, age, password }) => {
+export const registerUser = async ({ firstName, lastName, email, age, password, tariff }) => {
+  const normalizedTariff = tariff ? normalizeTariff(tariff) : undefined
   const body = {
     firstname: firstName,
     lastname: lastName,
     age,
     email,
     password,
+    ...(normalizedTariff ? { tariff: normalizedTariff } : {}),
   }
   const response = await apiAccounts.post('/v1/user/', body)
   return unwrap(response)
@@ -147,16 +182,39 @@ export const listReservations = async (token) => {
 }
 
 export const addReservation = async (showing, token) => {
-  const payload = {
-    ...showing,
-    createdAt: ensureIso(showing.createdAt ?? new Date().toISOString()),
+  const sessionIdentifier = showing.sessionId ?? showing.session ?? showing.session_id ?? null
+  if (!sessionIdentifier) {
+    throw new Error('Identifiant de séance manquant pour la réservation')
   }
-  const response = await apiAccounts.post('/v1/ticket/', { showing: payload }, withToken(token))
+  const payload = {
+    sessionId: sessionIdentifier,
+    seats: Number(showing.seats) || 1,
+    createdAt: ensureIso(showing.createdAt ?? new Date().toISOString()),
+    totalPrice: Number(showing.totalPrice ?? 0) || 0,
+    ...(Number(showing.basePrice) ? { basePrice: Number(showing.basePrice) } : {}),
+  }
+  const body = {
+    showing: {
+      ...payload,
+      session: sessionIdentifier,
+    },
+  }
+  const response = await apiAccounts.post('/v1/ticket/', body, withToken(token))
   const data = unwrap(response)
-  return normalizeReservation({
-    uuid: data && typeof data === 'object' ? data.uuid ?? data.id ?? null : null,
-    showing: payload,
-  })
+  return (
+    normalizeReservation({
+      ...(data && typeof data === 'object' ? data : {}),
+      showing: data?.showing ?? payload,
+    }) ?? {
+      id: data && typeof data === 'object' ? data.uuid ?? data.id ?? `ticket-${Date.now()}` : `ticket-${Date.now()}`,
+      sessionId: payload.sessionId ?? showing.sessionId ?? showing.session,
+      seats: payload.seats,
+      totalPrice: Number(showing.totalPrice ?? 0) || 0,
+      createdAt: payload.createdAt,
+      basePrice: payload.basePrice,
+      tariff: normalizeTariff(data?.tariff ?? null),
+    }
+  )
 }
 
 export const deleteReservation = async (reservationId, token) => {

@@ -1,6 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 import { useCinemaStore } from '../stores/cinemaStore.js'
+import {
+  formatTariffLabel,
+  discountForTariff,
+  DEFAULT_BASE_PRICE,
+} from '../utils/pricing.js'
 
 const store = useCinemaStore()
 
@@ -34,6 +39,17 @@ const totals = computed(() =>
     { seats: 0, revenue: 0 },
   ),
 )
+
+const reservationTariff = (tariff) => formatTariffLabel(tariff)
+const reservationSavings = (reservation) => {
+  const session = store.state.sessions.find((item) => item.id === reservation.sessionId)
+  const basePrice =
+    (session && Number(session.price)) ||
+    reservation.basePrice ||
+    DEFAULT_BASE_PRICE
+  const { total } = discountForTariff(basePrice, reservation.tariff, reservation.seats)
+  return total
+}
 </script>
 
 <template>
@@ -63,8 +79,10 @@ const totals = computed(() =>
           <tr>
             <th>Utilisateur</th>
             <th>Film / séance</th>
+            <th>Tarif</th>
             <th>Places</th>
             <th>Total</th>
+            <th>Économie</th>
             <th>Date</th>
           </tr>
         </thead>
@@ -72,8 +90,13 @@ const totals = computed(() =>
           <tr v-for="reservation in reservations" :key="reservation.id">
             <td>{{ store.state.users.find((user) => user.id === reservation.userId)?.login }}</td>
             <td>{{ filmName(reservation.sessionId) }}</td>
+            <td>{{ reservationTariff(reservation.tariff) }}</td>
             <td>{{ reservation.seats }}</td>
             <td>{{ reservation.totalPrice }} €</td>
+            <td>
+              <span v-if="reservationSavings(reservation)">{{ reservationSavings(reservation) }} €</span>
+              <span v-else>—</span>
+            </td>
             <td>{{ sessionLabel(reservation.sessionId) }}</td>
           </tr>
         </tbody>
