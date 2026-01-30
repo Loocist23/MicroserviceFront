@@ -1,44 +1,89 @@
-# Les Jeunot — billets cinéma (Architecture microservices)
+# Les Jeunot — Billetterie cinéma
 
-Application Vue 3 + Vite qui dialogue avec trois microservices (films, séances, comptes) et couvre tout le périmètre demandé dans l’exercice noté. Cette page résume **ce que le site permet** et **quelles options bonus sont déjà actives**.
+Front Vue 3 + Vite connecté à trois microservices (films, séances, comptes). Le site propose un
+catalogue en temps réel, un parcours de réservation et un back-office admin complet.
 
-## Fonctionnalités principales
+## Fonctionnalités clés
 
-- Catalogue public des films à l’affiche, affichable même si les services comptes/séances sont down.
-- Fiche film détaillée avec séances futures, choix du film verrouillé pendant la réservation.
-- Inscription / connexion utilisateur (formulaire classique, stockage JWT access+refresh).
-- Gestion des profils utilisateur (coordonnées, rôle) avec redirection après connexion.
-- Réservation de places sur une séance avec contrôle du stock (`seatsRemaining`), calcul du total et animation de paiement.
-- Historique personnel des réservations trié du plus récent au plus ancien.
-- Redirection automatique vers `/login` lorsqu’un visiteur non connecté tente de réserver, puis retour à la page d’origine après identification.
+- Catalogue public des films **avec séances à venir** (`/catalogue`).
+- Réservation sur une séance future, avec **simulation de paiement** et contrôle des places
+  restantes.
+- Redirection automatique vers `/login` si la réservation nécessite une session, puis retour à la
+  page d’origine.
+- Profil client avec historique des réservations, rôle, tarif et données personnelles.
+- Pages RGPD (politique + droits) et mentions légales.
+- Back-office admin (dashboard, programmation films + séances, réservations, clients, état services).
 
-## Espace back-office
+## Routes
 
-- Dashboard administrateur avec filtres temporels (3j, semaine, mois, trimestre, an), graphiques interactifs et tooltips au survol.
-- Gestion complète des films : Ajouter / Modifier / Supprimer (Nom, Genre, Durée, Année, Réalisateur, Synopsis, Age).
-- Gestion complète des séances fusionnée au même écran : création guidée juste après l’ajout d’un film, édition et suppression en un clic.
-- Vue par film des séances classées par jour, avec capacité restante et salle.
-- Aperçu global des réservations (table triée, cumul des places et du CA estimé).
-- Consultation de tous les comptes (login, nom, email, rôle, tarif) dès qu’on est admin.
-- Panel d’état des microservices en lecture seule (Films, Séances, Comptes) indiquant UP/DOWN.
+- `/` : accueil + stats de programmation.
+- `/catalogue` : liste des films disponibles.
+- `/catalogue/:filmId` : réservation pour un film sélectionné (si la page dédiée est présente).
+- `/login` : inscription + connexion.
+- `/profil` : profil client (protégé).
+- `/rgpd/confidentialite` : politique de confidentialité.
+- `/rgpd/droits` : droits RGPD + formulaire DPO.
+- `/legal/mentions` : mentions légales.
+- `/backoffice/*` : back-office admin (protégé).
+  - `/backoffice/dashboard`
+  - `/backoffice/catalogue`
+  - `/backoffice/sessions`
+  - `/backoffice/reservations`
+  - `/backoffice/clients`
+  - `/backoffice/services`
 
-## Microservices & technos
+## Back-office (admin)
 
-- Films : Node.js / Express, base MySQL, CRUD catalogue et métadonnées (affiches OMDb facultatives).
-- Séances & salles : Node.js / Express, base MySQL, gestion des salles, tarifs et disponibilités.
-- Comptes & réservations : Python / Flask, base PostgreSQL, authentification JWT (login + refresh), création de tickets.
-- Scripts SQL fournis dans `for-bdd/` pour initialiser chaque base séparément.
+- Dashboard : KPIs + courbes sur 7 jours (canvas).
+- Programmation : CRUD films + planning des séances sur le même écran.
+- Séances : création/édition/suppression, capacité, type de salle, prix optionnel.
+- Réservations : vue globale + revenus estimés.
+- Clients : liste des comptes et rôles.
+- Microservices : bascule UP/DOWN pour simuler une panne côté UI.
 
-## Workflows utilisateurs
+## Microservices & API attendues
 
-- Ajouter / Modifier / Supprimer un film (Nom, Genre, Durée, Année, Réalisateur, Synopsis, Age).
-- Ajouter / Modifier / Supprimer une séance (Film, Salle, Horaire, Capacité, Type, Prix).
-- S’inscrire avec prénom, nom, email, mot de passe, âge.
-- Se connecter, conserver la session (access + refresh token).
-- Réserver une séance avec vérification du quota et génération d’un ticket côté microservice comptes.
-- Consulter ses réservations dans le profil, consulter les films même si Comptes ou Séances sont indisponibles.
+- Films (Node/Express + MySQL) : `/api/films`
+- Séances & salles (Node/Express + MySQL) :
+  - `/api/show` (séances)
+  - `/api/room` (salles)
+- Comptes & réservations (Flask + PostgreSQL) :
+  - `/v1/user/*` (auth, profil, refresh)
+  - `/v1/ticket/*` (réservations)
 
-## Démarrage rapide
+Les URLs de base sont configurables via variables d’environnement :
+
+```bash
+VITE_API_FILMS=http://localhost:5000
+VITE_API_SEANCES=http://localhost:5001
+VITE_API_COMPTES=http://localhost:5002
+```
+
+## Auth & session
+
+- Login par email + mot de passe.
+- Stockage local des tokens access/refresh.
+- Tentative de refresh automatique en cas de 401.
+- Préférence de tarif mémorisée par email.
+
+## Données & mode hors-ligne
+
+- Films et séances : fallback automatique sur `src/services/mocks/*.json` si l’API est hors-ligne.
+- Comptes : fallback local pour la **liste des users** et la **liste des réservations** en mode
+  admin (les actions d’auth / création nécessitent l’API).
+- Cache local des films pour conserver le catalogue en mode dégradé.
+
+## Enrichissement (affiches + durée)
+
+Les films peuvent être enrichis automatiquement :
+- Affiches via la suggestion IMDb (cache local).
+- Durée via OMDb (cache local), si une clé est fournie :
+
+```bash
+VITE_OMDB_API_KEY=your_key
+```
+
+## Démarrage
 
 ```bash
 npm install
@@ -47,12 +92,3 @@ npm run dev    # http://localhost:5173
 npm run build
 npm run preview
 ```
-
-## Bonus
-
-### Bonus réalisés
-- Permettre de consulter la liste des films même si les services Comptes/Séances sont hors ligne.
-- Mettre en place une authentification JWT complète (login, refresh, access token).
-
-### Bonus faciles à ajouter
-- Gérer les tarifs en fonction des types d’utilisateur (étudiant, -16 ans, chômeur, …).
