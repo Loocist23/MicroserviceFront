@@ -6,22 +6,33 @@ import { normalizeId } from '../utils/id.js'
 
 const store = useCinemaStore()
 
+// Récupérer les genres, age ratings et salles au chargement
+const fetchGenresAndRatingsAndRooms = async () => {
+  try {
+    await store.fetchGenres()
+    await store.fetchAgeRatings()
+    await store.fetchRooms()
+  } catch (error) {
+    console.error('Erreur lors du chargement des données:', error)
+  }
+}
+
+// Appeler la fonction au chargement du composant
+fetchGenresAndRatingsAndRooms()
+
 const blankFilm = () => ({
   name: '',
-  genre: '',
+  genreIds: [],
   duration: '',
   year: '',
-  director: '',
+  author: '',
   synopsis: '',
-  ageRating: '',
+  ageRatingId: null,
 })
 
 const blankSessionForm = () => ({
   schedule: '',
-  roomNumber: '',
-  seatsTotal: '',
-  roomType: 'Standard',
-  price: '',
+  roomId: '',
 })
 
 const formatDateInput = (value) => {
@@ -74,10 +85,7 @@ const startSessionPlanner = (filmId, session = null) => {
     editingSessionId.value = session.id
     Object.assign(sessionForm, {
       schedule: formatDateInput(session.schedule),
-      roomNumber: session.roomNumber ?? '',
-      seatsTotal: session.seatsTotal ?? '',
-      roomType: session.roomType ?? 'Standard',
-      price: session.price ?? '',
+      roomId: session.roomId ?? '',
     })
   } else {
     editingSessionId.value = ''
@@ -93,8 +101,8 @@ const cancelSessionPlanner = () => {
 }
 
 const submitFilm = async () => {
-  if (!filmForm.name || !filmForm.genre) {
-    filmFeedback.value = 'Merci de renseigner au moins le nom et le genre.'
+  if (!filmForm.name || filmForm.genreIds.length === 0) {
+    filmFeedback.value = 'Merci de renseigner au moins le nom et un genre.'
     return
   }
 
@@ -102,7 +110,7 @@ const submitFilm = async () => {
     ...filmForm,
     duration: Number(filmForm.duration) || 0,
     year: Number(filmForm.year) || new Date().getFullYear(),
-    ageRating: Number(filmForm.ageRating) || 0,
+    ageRatingId: filmForm.ageRatingId !== null && filmForm.ageRatingId !== '' ? Number(filmForm.ageRatingId) : 0,
   }
 
   try {
@@ -122,7 +130,16 @@ const submitFilm = async () => {
 
 const handleEdit = (film) => {
   editingFilmId.value = film.id
-  Object.assign(filmForm, film)
+  // Adapter les données du film pour le formulaire
+  Object.assign(filmForm, {
+    name: film.name,
+    genreIds: film.genres ? film.genres.map(g => g.id) : [],
+    duration: film.duration,
+    year: film.year,
+    author: film.author || film.director || '',
+    synopsis: film.synopsis,
+    ageRatingId: film.ageRatingId || (film.ageRating ? film.ageRating.id : null),
+  })
 }
 
 const handleDelete = async (film) => {
@@ -169,14 +186,19 @@ const submitSession = async () => {
     sessionFeedback.value = 'Renseigne la date et l’heure de la séance.'
     return
   }
+  if (!sessionForm.roomId) {
+    sessionFeedback.value = 'Sélectionne une salle.'
+    return
+  }
 
+  // Utiliser un tarif par défaut (par exemple 10€)
+  const defaultPrice = 10
+  
   const payload = {
     filmId: sessionFilmId.value,
     schedule: sessionForm.schedule,
-    roomNumber: Number(sessionForm.roomNumber) || 1,
-    seatsTotal: Number(sessionForm.seatsTotal) || 0,
-    roomType: sessionForm.roomType || 'Standard',
-    price: sessionForm.price ? Number(sessionForm.price) : undefined,
+    roomId: sessionForm.roomId,
+    price: defaultPrice,
   }
 
   try {
@@ -187,7 +209,7 @@ const submitSession = async () => {
       await store.addSession(payload)
       sessionFeedback.value = 'Séance ajoutée.'
     }
-    Object.assign(sessionForm, { ...sessionForm, schedule: '' })
+    Object.assign(sessionForm, { ...sessionForm, schedule: '', roomId: '' })
     editingSessionId.value = ''
   } catch (error) {
     sessionFeedback.value = error.message
@@ -227,8 +249,18 @@ const filmSessions = (filmId) => sessionsGroupedByFilm.value[normalizeId(filmId)
           <input v-model="filmForm.name" placeholder="Ex : Dune" required />
         </label>
         <label>
-          Genre
-          <input v-model="filmForm.genre" placeholder="Science-fiction" required />
+          Genre(s)
+          <div class="genre-checkboxes">
+            <label v-for="genre in store.state.genres" :key="genre.id" class="checkbox-label">
+              <input
+                type="checkbox"
+                :value="genre.id"
+                v-model="filmForm.genreIds"
+                class="checkbox-input"
+              />
+              {{ genre.label }}
+            </label>
+          </div>
         </label>
         <label>
           Durée (min)
@@ -239,8 +271,8 @@ const filmSessions = (filmId) => sessionsGroupedByFilm.value[normalizeId(filmId)
           <input v-model="filmForm.year" type="number" min="1900" max="2100" />
         </label>
         <label>
-          Réalisateur
-          <input v-model="filmForm.director" placeholder="Nom du réalisateur" />
+          Auteur
+          <input v-model="filmForm.author" placeholder="Nom de l'auteur" />
         </label>
         <label>
           Synopsis
@@ -248,7 +280,17 @@ const filmSessions = (filmId) => sessionsGroupedByFilm.value[normalizeId(filmId)
         </label>
         <label>
           Restriction d’âge
-          <input v-model="filmForm.ageRating" type="number" min="0" max="18" step="2" />
+          <div class="age-rating-buttons">
+            <label v-for="rating in store.state.ageRatings" :key="rating.id" class="radio-label">
+              <input
+                type="radio"
+                :value="rating.id"
+                v-model="filmForm.ageRatingId"
+                class="radio-input"
+              />
+              {{ rating.value }}+
+            </label>
+          </div>
         </label>
         <div class="form__actions">
           <button type="submit" class="primary">
@@ -269,9 +311,9 @@ const filmSessions = (filmId) => sessionsGroupedByFilm.value[normalizeId(filmId)
               <div>
                 <h4>{{ film.name }}</h4>
                 <p class="muted">
-                  {{ film.genre }} · {{ durationText(film.duration) }} · {{ film.year }}
+                  {{ film.genres ? film.genres.map(g => g.label).join(', ') : '' }} · {{ durationText(film.duration) }} · {{ film.year }}
                 </p>
-                <p class="muted">Réalisateur : {{ film.director || 'Inconnu' }}</p>
+                <p class="muted">Auteur : {{ film.author || 'Inconnu' }}</p>
               </div>
               <div class="programming-film__actions">
                 <button type="button" class="ghost" @click="handleEdit(film)">Modifier</button>
@@ -282,7 +324,7 @@ const filmSessions = (filmId) => sessionsGroupedByFilm.value[normalizeId(filmId)
               </div>
             </header>
             <p>{{ film.synopsis || 'Pas de synopsis fourni.' }}</p>
-            <p class="badge">Âge conseillé : {{ ageRatingText(film.ageRating) }}</p>
+            <p class="badge">Âge conseillé : {{ ageRatingText(film.ageRatingId || film.ageRating) }}</p>
 
             <div class="programming-film__sessions">
               <p class="muted">Séances reliées</p>
@@ -338,21 +380,17 @@ const filmSessions = (filmId) => sessionsGroupedByFilm.value[normalizeId(filmId)
                 </label>
                 <label>
                   Salle
-                  <input v-model="sessionForm.roomNumber" type="number" min="1" required />
+                  <select v-model="sessionForm.roomId" required class="room-select">
+                    <option value="">Sélectionnez une salle</option>
+                    <option v-for="room in store.state.rooms" :key="room.id" :value="room.id">
+                      Salle {{ room.room_number }} - {{ room.room_type }} ({{ room.seat_number }} places)
+                    </option>
+                  </select>
                 </label>
               </div>
-              <div class="inline-session-form__row">
-                <label>
-                  Capacité
-                  <input v-model="sessionForm.seatsTotal" type="number" min="1" required />
-                </label>
-                <label>
-                  Type de salle
-                  <input v-model="sessionForm.roomType" placeholder="IMAX, Dolby Atmos…" />
-                </label>
-              </div>
+
               <label>
-                Tarif (optionnel)
+                Tarif
                 <input v-model="sessionForm.price" type="number" min="0" step="0.5" />
               </label>
               <div class="form__actions">
@@ -369,3 +407,77 @@ const filmSessions = (filmId) => sessionsGroupedByFilm.value[normalizeId(filmId)
     </div>
   </section>
 </template>
+
+<style scoped>
+.genre-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.checkbox-label:hover {
+  background: #e9e9e9;
+}
+
+.checkbox-input {
+  cursor: pointer;
+}
+
+.age-rating-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.radio-label:hover {
+  background: #e9e9e9;
+}
+
+.radio-input {
+  cursor: pointer;
+}
+
+.radio-label input:checked + span {
+  background: #4CAF50;
+  color: white;
+}
+
+.room-select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+}
+
+.room-select:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+</style>

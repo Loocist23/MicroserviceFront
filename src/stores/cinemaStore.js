@@ -114,15 +114,24 @@ const state = reactive({
   currentUser: null,
   authToken: '',
   refreshToken: '',
+  genres: [],
+  ageRatings: [],
+  rooms: [],
   loading: {
     films: false,
     sessions: false,
     accounts: false,
+    genres: false,
+    ageRatings: false,
+    rooms: false,
   },
   errors: {
     films: '',
     sessions: '',
     accounts: '',
+    genres: '',
+    ageRatings: '',
+    rooms: '',
   },
   serviceDown: {
     films: false,
@@ -243,6 +252,45 @@ const fetchFilms = async () => {
     }
   } finally {
     state.loading.films = false
+  }
+}
+
+const fetchGenres = async () => {
+  state.loading.genres = true
+  resetError('genres')
+  try {
+    const genres = await filmsService.listGenres()
+    state.genres = genres
+  } catch (error) {
+    setError('genres', error)
+  } finally {
+    state.loading.genres = false
+  }
+}
+
+const fetchAgeRatings = async () => {
+  state.loading.ageRatings = true
+  resetError('ageRatings')
+  try {
+    const ageRatings = await filmsService.listAgeRatings()
+    state.ageRatings = ageRatings
+  } catch (error) {
+    setError('ageRatings', error)
+  } finally {
+    state.loading.ageRatings = false
+  }
+}
+
+const fetchRooms = async () => {
+  state.loading.rooms = true
+  resetError('rooms')
+  try {
+    const rooms = await sessionsService.listRooms()
+    state.rooms = rooms
+  } catch (error) {
+    setError('rooms', error)
+  } finally {
+    state.loading.rooms = false
   }
 }
 
@@ -549,6 +597,9 @@ export const useCinemaStore = () => ({
   fetchFilms,
   fetchSessions,
   fetchAccounts,
+  fetchGenres,
+  fetchAgeRatings,
+  fetchRooms,
   setServiceStatus,
   addFilm,
   editFilm,

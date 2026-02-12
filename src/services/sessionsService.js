@@ -221,3 +221,41 @@ export const reserveSeats = async (sessionId, seats) =>
         }),
       ),
   )
+
+export const listRooms = async () =>
+  withSessionsFallback(
+    async () => {
+      const response = await apiSessions.get('/api/room')
+      const rooms = unwrap(response) ?? []
+      return rooms.map((room) => normalizeRoom(room))
+    },
+    () => {
+      // Retourner des salles mock
+      return [
+        { id: 1, room_number: 1, seat_number: 120, room_type: 'Standard' },
+        { id: 2, room_number: 2, seat_number: 80, room_type: '3D' },
+        { id: 3, room_number: 3, seat_number: 150, room_type: 'IMAX' },
+        { id: 4, room_number: 4, seat_number: 100, room_type: 'Dolby Atmos' },
+        { id: 5, room_number: 5, seat_number: 60, room_type: 'VIP' }
+      ]
+    },
+  )
+
+export const getRoomById = async (roomId) =>
+  withSessionsFallback(
+    async () => {
+      const response = await apiSessions.get(`/api/room/${roomId}`)
+      return normalizeRoom(unwrap(response))
+    },
+    () => {
+      // Retourner une salle mock basée sur l'ID
+      const mockRooms = [
+        { id: 1, room_number: 1, seat_number: 120, room_type: 'Standard' },
+        { id: 2, room_number: 2, seat_number: 80, room_type: '3D' },
+        { id: 3, room_number: 3, seat_number: 150, room_type: 'IMAX' },
+        { id: 4, room_number: 4, seat_number: 100, room_type: 'Dolby Atmos' },
+        { id: 5, room_number: 5, seat_number: 60, room_type: 'VIP' }
+      ]
+      return mockRooms.find(room => room.id === roomId) || mockRooms[0]
+    },
+  )

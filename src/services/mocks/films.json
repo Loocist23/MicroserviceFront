@@ -2,7 +2,7 @@
   {
     "id": "film-1",
     "name": "Inception",
-    "genre": "Science-fiction",
+    "genre": ["Science-fiction", "Action", "Thriller"],
     "duration": 148,
     "year": 2010,
     "director": "Christopher Nolan",
@@ -15,7 +15,7 @@
   {
     "id": "film-2",
     "name": "Interstellar",
-    "genre": "Science-fiction",
+    "genre": ["Science-fiction", "Drame", "Aventure"],
     "duration": 169,
     "year": 2014,
     "director": "Christopher Nolan",
@@ -28,7 +28,7 @@
   {
     "id": "film-3",
     "name": "Le Fabuleux Destin d’Amélie Poulain",
-    "genre": "Comédie romantique",
+    "genre": ["Comédie romantique", "Fantaisie"],
     "duration": 122,
     "year": 2001,
     "director": "Jean-Pierre Jeunet",
@@ -41,7 +41,7 @@
   {
     "id": "film-4",
     "name": "Parasite",
-    "genre": "Thriller social",
+    "genre": ["Thriller social", "Drame", "Comédie noire"],
     "duration": 132,
     "year": 2019,
     "director": "Bong Joon-ho",
@@ -54,7 +54,7 @@
   {
     "id": "film-5",
     "name": "Dune : Deuxième Partie",
-    "genre": "Épopée de science-fiction",
+    "genre": ["Épopée de science-fiction", "Aventure", "Drame"],
     "duration": 165,
     "year": 2024,
     "director": "Denis Villeneuve",
@@ -67,7 +67,7 @@
   {
     "id": "film-6",
     "name": "La La Land",
-    "genre": "Comédie musicale",
+    "genre": ["Comédie musicale", "Romance", "Drame"],
     "duration": 128,
     "year": 2016,
     "director": "Damien Chazelle",
@@ -80,7 +80,7 @@
   {
     "id": "film-7",
     "name": "Les Indestructibles",
-    "genre": "Animation",
+    "genre": ["Animation", "Action", "Famille"],
     "duration": 115,
     "year": 2004,
     "director": "Brad Bird",
@@ -93,7 +93,7 @@
   {
     "id": "film-8",
     "name": "The Grand Budapest Hotel",
-    "genre": "Comédie d’aventure",
+    "genre": ["Comédie d’aventure", "Drame", "Comédie"],
     "duration": 99,
     "year": 2014,
     "director": "Wes Anderson",

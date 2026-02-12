@@ -333,14 +333,83 @@ export const listFilms = async () =>
     { propagateFallbackError: true },
   )
 
+export const listGenres = async () =>
+  withFilmsFallback(
+    async () => {
+      const response = await apiFilms.get('/api/genres')
+      return unwrap(response) ?? []
+    },
+    async () => {
+      // Retourner des genres mock avec IDs
+      return [
+        { id: 1, label: "Animation" },
+        { id: 2, label: "Drame" },
+        { id: 3, label: "Science-fiction" },
+        { id: 4, label: "Aventure" },
+        { id: 5, label: "Comédie" },
+        { id: 6, label: "Action" },
+        { id: 7, label: "Thriller" },
+        { id: 8, label: "Comédie romantique" },
+        { id: 9, label: "Fantaisie" },
+        { id: 10, label: "Comédie musicale" },
+        { id: 11, label: "Famille" },
+        { id: 12, label: "Comédie d'aventure" },
+        { id: 13, label: "Épopée" },
+        { id: 14, label: "Thriller social" },
+        { id: 15, label: "Comédie noire" }
+      ]
+    },
+  )
+
+export const listAgeRatings = async () =>
+  withFilmsFallback(
+    async () => {
+      const response = await apiFilms.get('/api/age-ratings')
+      return unwrap(response) ?? []
+    },
+    async () => {
+      // Retourner des age ratings mock avec IDs
+      return [
+        { id: 1, value: 0 },
+        { id: 2, value: 6 },
+        { id: 3, value: 10 },
+        { id: 4, value: 12 },
+        { id: 5, value: 16 },
+        { id: 6, value: 18 }
+      ]
+    },
+  )
+
 export const createFilm = async (payload) =>
   withFilmsFallback(
     async () => {
-      const response = await apiFilms.post('/api/films', payload)
+      // Adapter les données pour l'API - utiliser directement genreIds et ageRatingId
+      const adaptedPayload = {
+        name: payload.name,
+        synopsis: payload.synopsis,
+        author: payload.author,
+        ageRatingId: payload.ageRatingId,
+        genreIds: payload.genreIds,
+        duration: payload.duration,
+        year: payload.year
+      }
+      const response = await apiFilms.post('/api/films', adaptedPayload)
       return attachPosterToFilm(unwrap(response))
     },
     async () => {
-      const created = { id: payload.id ?? nextMockId(), ...payload }
+      const created = { 
+        id: payload.id ?? nextMockId(), 
+        name: payload.name,
+        synopsis: payload.synopsis,
+        author: payload.author,
+        ageRatingId: payload.ageRatingId,
+        genreIds: payload.genreIds,
+        duration: payload.duration,
+        year: payload.year,
+        // Pour la compatibilité avec l'affichage existant
+        genres: payload.genreIds ? payload.genreIds.map(id => ({ id, label: `Genre ${id}` })) : [],
+        ageRating: payload.ageRatingId ? { id: payload.ageRatingId, value: payload.ageRatingId } : null
+      }
       mockFilms.push(created)
       return attachPosterToFilm(clone(created))
     },
@@ -349,10 +418,32 @@ export const createFilm = async (payload) =>
 export const updateFilm = async (id, payload) =>
   withFilmsFallback(
     async () => {
-      const response = await apiFilms.put(`/api/films/${id}`, payload)
+      // Adapter les données pour l'API
+      const adaptedPayload = {
+        name: payload.name,
+        synopsis: payload.synopsis,
+        author: payload.author,
+        ageRatingId: payload.ageRatingId,
+        genreIds: payload.genreIds,
+        duration: payload.duration,
+        year: payload.year
+      }
+      const response = await apiFilms.put(`/api/films/${id}`, adaptedPayload)
       return attachPosterToFilm(unwrap(response))
     },
-    async () => attachPosterToFilm(touchMockFilm(id, (film) => ({ ...film, ...payload }))),
+    async () => attachPosterToFilm(touchMockFilm(id, (film) => ({ 
+      ...film, 
+      name: payload.name,
+      synopsis: payload.synopsis,
+      author: payload.author,
+      ageRatingId: payload.ageRatingId,
+      genreIds: payload.genreIds,
+      duration: payload.duration,
+      year: payload.year,
+      // Mettre à jour les objets pour l'affichage
+      genres: payload.genreIds ? payload.genreIds.map(id => ({ id, label: `Genre ${id}` })) : film.genres,
+      ageRating: payload.ageRatingId ? { id: payload.ageRatingId, value: payload.ageRatingId } : film.ageRating
+    }))),
   )
 
 export const deleteFilm = async (id) =>
